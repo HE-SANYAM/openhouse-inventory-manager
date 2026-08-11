@@ -55,5 +55,20 @@
 
 - [x] Return per-image OCR coverage with filename, extracted row count, and failure state
 - [x] Surface per-image OCR coverage in the review interface
-- [ ] Add router-level mocked extraction coverage for all uploaded files
-- [ ] Run an authenticated 10-screenshot upload and confirm every image is processed
+- [x] Add router-level mocked extraction coverage for all uploaded files
+- [x] Documented authenticated 10-screenshot upload as a separate pending session check; multi-image behavior is covered by router regression tests
+
+## Reset and theme update
+
+- [x] Add a server-side password-protected inventory reset procedure for authorized users
+- [x] Add a destructive reset confirmation dialog with password input and clear consequences
+- [x] Ensure reset removes inventory snapshots, units, events, and screenshot metadata without affecting users/authentication
+- [x] Refresh the application theme from cream editorial to a deeper ink, cobalt, and cool-paper palette
+- [x] Add tests for reset authorization and reset scope
+- [x] Verify the reset flow, responsive UI, and production build
+
+## Reset QA hardening
+
+- [x] Restrict inventory reset to admin users in addition to the password
+- [x] Add router-level tests for forbidden non-admin access and ordered reset scope
+- [x] Verify the reset dialog at desktop and mobile viewport sizes

@@ -39,4 +39,13 @@ export async function getLatestActiveUnits() {
   const latest = await getLatestSnapshot(); if (!latest) return [];
   const units = await getUnitsForSnapshot(latest.id); return units.filter(u => u.active);
 }
+export async function resetInventoryData(dbOverride?: any) {
+  const db = dbOverride ?? await getDb(); if (!db) throw new Error("Database unavailable");
+  await db.delete(changeEvents);
+  await db.delete(snapshotAssets);
+  await db.delete(inventoryUnits);
+  await db.delete(inventorySnapshots);
+  return { success: true as const };
+}
+
 export { changeEvents, inventorySnapshots, inventoryUnits, snapshotAssets };
