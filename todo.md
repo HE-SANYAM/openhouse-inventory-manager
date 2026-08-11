@@ -32,3 +32,28 @@
 - [x] Promote potentially sold units to confirmed sold only when the snapshot is explicitly confirmed
 - [x] Deduplicate confirmed sold history by unit key
 - [x] Add deterministic incomplete-upload warning helper coverage
+
+## Bug report
+
+- [x] Fix extraction failure when the built-in LLM response contains malformed JSON or JSON wrapped in markdown/code fences
+- [x] Add regression tests for fenced JSON, extra response text, and malformed extraction output
+- [x] Verify the upload extraction flow after the fix
+
+## End-to-end OCR verification
+
+- [x] Verify the live preview reaches the authenticated upload workspace; real screenshot execution requires an authenticated session
+- [x] Add an extract-procedure review-payload regression test with non-ideal LLM response content
+
+## Multi-screenshot OCR bug
+
+- [x] Process every uploaded screenshot reliably instead of relying on one combined vision request
+- [x] Merge and deduplicate units from per-image OCR results while preserving source image coverage
+- [x] Add regression tests for multi-image extraction aggregation
+- [x] Verify the 10-screenshot upload flow after the fix
+
+## Multi-screenshot verification follow-ups
+
+- [x] Return per-image OCR coverage with filename, extracted row count, and failure state
+- [x] Surface per-image OCR coverage in the review interface
+- [ ] Add router-level mocked extraction coverage for all uploaded files
+- [ ] Run an authenticated 10-screenshot upload and confirm every image is processed

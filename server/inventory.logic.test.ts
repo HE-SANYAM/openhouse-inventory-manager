@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compareUnits, completenessScore, incompleteUploadWarning, normalizeUnit, unitKey } from "@shared/inventoryLogic";
+import { compareUnits, completenessScore, incompleteUploadWarning, mergeExtractedUnits, normalizeUnit, unitKey } from "@shared/inventoryLogic";
 
 const unit = (overrides = {}) => ({ societyName: "Arihant Amber", unitNumber: "D- 1407", areaSqft: 1250, configuration: "3 BHK", floor: "14", locality: "Noida", status: "Available", askPriceDisplay: "90 Lacs", askPriceValue: 9000000, isMarkedNew: true, ...overrides });
 
@@ -13,6 +13,11 @@ describe("inventory comparison logic", () => {
     expect(completenessScore([normalizeUnit(unit())])).toBe(100);
     expect(normalizeUnit(unit({ askPriceDisplay: "1.09 Cr", askPriceValue: null })).askPriceValue).toBe(10900000);
     expect(incompleteUploadWarning(150, 70, 90)).toContain("80 units are missing");
+  });
+  it("merges rows from multiple screenshots and removes duplicate unit keys", () => {
+    const merged = mergeExtractedUnits([[unit({ unitNumber: "A-101" })], [unit({ unitNumber: "B-202" }), unit({ unitNumber: "A-101", askPriceValue: 9100000 })]]);
+    expect(merged.map(u => u.unitNumber)).toEqual(["A-101", "B-202"]);
+    expect(merged[0]?.askPriceValue).toBe(9100000);
   });
   it("classifies sourced, updated, existing, and sold units", () => {
     const yesterday = [{ ...unit({ unitNumber: "D-1407" }), unitKey: "arihant amber::d-1407" }, { ...unit({ unitNumber: "B-907" }), unitKey: "arihant amber::b-907" }];
