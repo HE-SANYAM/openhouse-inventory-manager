@@ -1,33 +1,52 @@
-import { useAuth } from "@/_core/hooks/useAuth";
+import { useMemo, useState } from "react";
+import { trpc } from "@/lib/trpc";
+import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
-import { Streamdown } from 'streamdown';
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ArrowUpRight, BarChart3, Check, ChevronRight, CircleAlert, Clock3, FileImage, Filter, History, Home as HomeIcon, Loader2, Minus, Plus, Search, Sparkles, TrendingDown, TrendingUp, UploadCloud, X } from "lucide-react";
+import { toast } from "sonner";
 
-/**
- * All content in this page are only for example, replace with your own feature implementation
- * When building pages, remember your instructions in Frontend Workflow, Frontend Best Practices, Design Guide and Common Pitfalls
- */
-export default function Home() {
-  // The useAuth hook provides authentication state.
-  // To implement login/logout, call logout(), or start login from an event
-  // handler: onClick={() => startLogin()} (imported from "@/const"). Never call
-  // startLogin() during render (no href={startLogin()}) — it mints a one-time
-  // nonce cookie and must run only at the moment of navigation.
-  let { user, loading, error, isAuthenticated, logout } = useAuth();
+type FilePayload = { name: string; mimeType: string; dataUrl: string };
+const formatPrice = (value: unknown, display?: string | null) => display || (value ? `₹${Number(value).toLocaleString("en-IN")}` : "—");
+const formatDate = (date: unknown) => date ? new Date(date as string).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
 
-  // If theme is switchable in App.tsx, we can implement theme toggling like this:
-  // const { theme, toggleTheme } = useTheme();
-
-  return (
-    <div className="min-h-screen flex flex-col">
-      <main>
-        {/* Example: lucide-react for icons */}
-        <Loader2 className="animate-spin" />
-        Example Page
-        {/* Example: Streamdown for markdown rendering */}
-        <Streamdown>Any **markdown** content</Streamdown>
-        <Button variant="default">Example Button</Button>
-      </main>
-    </div>
-  );
+function Metric({ label, value, detail, tone = "ink" }: { label: string; value: string | number; detail: string; tone?: "ink" | "green" | "red" | "gold" }) {
+  return <div className={`metric metric-${tone}`}><p className="eyebrow">{label}</p><div className="metric-value">{value}</div><p className="metric-detail">{detail}</p></div>;
 }
+function SectionTitle({ kicker, title, note }: { kicker: string; title: string; note?: string }) { return <div className="section-title"><span className="eyebrow">{kicker}</span><h2>{title}</h2>{note && <p>{note}</p>}</div>; }
+
+export default function Home() {
+  const [tab, setTab] = useState("dashboard"); const [search, setSearch] = useState(""); const [sort, setSort] = useState<"updated" | "price" | "area">("updated"); const [files, setFiles] = useState<FilePayload[]>([]); const [review, setReview] = useState<any | null>(null); const [dragging, setDragging] = useState(false);
+  const dashboard = trpc.dashboard.useQuery(); const inventory = trpc.inventory.useQuery({ search, sort }); const sourced = trpc.sourced.useQuery(undefined, { enabled: tab === "sourced" }); const sold = trpc.sold.useQuery(undefined, { enabled: tab === "sold" }); const history = trpc.history.useQuery(undefined, { enabled: tab === "history" });
+  const extract = trpc.extract.useMutation({ onSuccess: data => { setReview(data); toast.success("Extraction ready for review"); }, onError: e => toast.error(e.message) });
+  const confirm = trpc.confirm.useMutation({ onSuccess: () => { toast.success("Snapshot confirmed"); setReview(null); setFiles([]); dashboard.refetch(); inventory.refetch(); setTab("dashboard"); }, onError: e => toast.error(e.message) });
+  const activeUnits = inventory.data ?? []; const trend = dashboard.data?.trend ?? [];
+  const addFiles = async (list: FileList | File[]) => { const next: FilePayload[] = []; for (const file of Array.from(list)) { if (!file.type.startsWith("image/")) continue; const dataUrl = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsDataURL(file); }); next.push({ name: file.name, mimeType: file.type, dataUrl }); } setFiles(prev => [...prev, ...next]); };
+  const handleExtract = () => { if (!files.length) return toast.error("Add at least one screenshot"); extract.mutate({ files }); };
+  const eventCounts = useMemo(() => { const list = review?.changes ?? []; return { sourced: list.filter((x: any) => x.type === "sourced").length, sold: list.filter((x: any) => x.type === "potentially_sold").length, updated: list.filter((x: any) => x.type === "updated" || x.type === "price_changed").length }; }, [review]);
+  const confirmReview = () => { if (!review) return; confirm.mutate({ snapshotDate: new Date().toISOString(), sourceFileCount: review.assets.length, completenessScore: review.completenessScore, warning: review.warning, assets: review.assets, units: review.units, changes: review.changes }); };
+
+  return <DashboardLayout>
+    <div className="app-shell">
+      <header className="topbar"><div><span className="eyebrow">OPENHOUSE / INVENTORY INTELLIGENCE</span><h1>Daily inventory, <em>made legible.</em></h1></div><div className="topbar-actions"><div className="date-stamp">{new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</div><Button className="ink-button" onClick={() => setTab("upload")}><UploadCloud size={16} /> Upload report</Button></div></header>
+      <div className="rule" />
+      <Tabs value={tab} onValueChange={setTab} className="workspace-tabs"><TabsList><TabsTrigger value="dashboard"><BarChart3 size={15} /> Overview</TabsTrigger><TabsTrigger value="inventory"><HomeIcon size={15} /> Inventory</TabsTrigger><TabsTrigger value="sourced"><Plus size={15} /> Sourced</TabsTrigger><TabsTrigger value="sold"><Minus size={15} /> Sold</TabsTrigger><TabsTrigger value="history"><History size={15} /> History</TabsTrigger><TabsTrigger value="upload"><UploadCloud size={15} /> Upload</TabsTrigger></TabsList>
+        <TabsContent value="dashboard"><section className="hero-grid"><div className="hero-copy"><span className="eyebrow">THE MORNING EDITION</span><h2>The market,<br /><i>in motion.</i></h2><p>A clear view of what is active, what just arrived, and what quietly left the book.</p><Button variant="outline" onClick={() => setTab("history")}>Read the ledger <ChevronRight size={15} /></Button></div><div className="metrics-grid"><Metric label="Current inventory" value={dashboard.data?.active ?? 0} detail="active units in the latest snapshot" /><Metric label="New / sourced" value={dashboard.data?.sourced ?? 0} detail="units first seen today" tone="green" /><Metric label="Sold / removed" value={dashboard.data?.sold ?? 0} detail="units absent from today" tone="red" /><Metric label="Price changes" value={dashboard.data?.priceChanges ?? 0} detail={`${dashboard.data?.net ?? 0} net inventory change`} tone="gold" /></div></section><section className="trend-section"><div className="section-title"><span className="eyebrow">SNAPSHOT HISTORY</span><h2>Inventory movement</h2></div><div className="trend-card">{trend.length ? <div className="trend-bars">{trend.map((point, i) => <div className="trend-point" key={`${point.date}-${i}`}><div className="bar-wrap"><div className="bar" style={{ height: `${Math.max(12, (point.count / Math.max(...trend.map(t => t.count), 1)) * 100)}%` }} /></div><span>{point.date}</span><strong>{point.count}</strong></div>)}</div> : <div className="empty-chart"><Sparkles size={18} /> Confirm your first snapshot to see movement over time.</div>}</div></section><section className="insight-strip"><div><span className="eyebrow">EDITOR'S NOTE</span><h3>Every change deserves a second look.</h3></div><p>Uploads remain in review until you confirm. Missing sections are flagged before anything is classified as sold.</p><Button variant="ghost" onClick={() => setTab("upload")}>Start today's review <ArrowUpRight size={16} /></Button></section></TabsContent>
+        <TabsContent value="inventory"><section className="page-heading"><SectionTitle kicker="ACTIVE BOOK" title="Inventory" note="Only units present in the latest confirmed snapshot." /><div className="search-field"><Search size={16} /><Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search society, unit, locality" /><select aria-label="Sort inventory" value={sort} onChange={e => setSort(e.target.value as any)}><option value="updated">Recent</option><option value="price">Price</option><option value="area">Area</option></select><Filter size={15} /></div></section><DataTable rows={activeUnits} kind="inventory" /></TabsContent>
+        <TabsContent value="sourced"><section className="page-heading"><SectionTitle kicker="FIRST APPEARANCE" title="Sourced units" note="Newly detected units, separated from the report's own NEW badge." /></section><DataTable rows={sourced.data?.map((r: any) => r.unit) ?? []} kind="sourced" /></TabsContent>
+        <TabsContent value="sold"><section className="page-heading"><SectionTitle kicker="REMOVED FROM BOOK" title="Sold / removed" note="Units absent from the latest confirmed report, subject to completeness review." /></section><DataTable rows={sold.data?.map((r: any) => r.unit) ?? []} kind="sold" /></TabsContent>
+        <TabsContent value="history"><section className="page-heading"><SectionTitle kicker="THE LEDGER" title="Upload history" note="Every confirmed snapshot retains its source screenshots for audit and review." /></section><div className="history-list">{history.data?.length ? history.data.map((s: any) => <HistoryRow key={s.id} snapshot={s} />) : <EmptyState label="No confirmed snapshots yet" detail="Your first upload will establish the baseline inventory." />}</div></TabsContent>
+        <TabsContent value="upload"><section className="page-heading"><SectionTitle kicker="NEW SNAPSHOT" title="Upload today's report" note="Add one or more screenshots. Nothing is written to the database until you confirm the review." /></section>{review ? <ReviewPanel review={review} counts={eventCounts} onConfirm={confirmReview} confirming={confirm.isPending} onReset={() => setReview(null)} /> : <div className="upload-layout"><div className={`dropzone ${dragging ? "dragging" : ""}`} onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={e => { e.preventDefault(); setDragging(false); addFiles(e.dataTransfer.files); }}><input id="file-upload" type="file" accept="image/*" multiple onChange={e => e.target.files && addFiles(e.target.files)} /><label htmlFor="file-upload"><div className="upload-icon"><UploadCloud size={24} /></div><h3>Drop screenshots here</h3><p>or click to browse your report images</p><span className="eyebrow">PNG / JPG / WEBP · MULTIPLE FILES SUPPORTED</span></label></div><div className="file-rail">{files.length ? files.map((file, i) => <div className="file-row" key={`${file.name}-${i}`}><FileImage size={17} /><span>{file.name}</span><button onClick={() => setFiles(files.filter((_, j) => j !== i))}><X size={14} /></button></div>) : <EmptyState label="No screenshots selected" detail="Your source images will be preserved with the confirmed snapshot." />}<Button className="ink-button full-button" disabled={!files.length || extract.isPending} onClick={handleExtract}>{extract.isPending ? <><Loader2 className="spin" size={16} /> Reading report…</> : <><Sparkles size={16} /> Extract & review</>}</Button></div></div>}</TabsContent>
+      </Tabs>
+    </div>
+  </DashboardLayout>;
+}
+
+function DataTable({ rows, kind }: { rows: any[]; kind: string }) { return <div className="table-card"><div className="table-head"><span>Society / unit</span><span>Area</span><span>Configuration</span><span>Status</span><span>Ask price</span><span>{kind === "inventory" ? "Last updated" : "Date"}</span></div>{rows.length ? rows.map((u, i) => <div className="table-row" key={`${u.unitKey ?? u.id}-${i}`}><div><strong>{u.societyName}</strong><span>{u.unitNumber}{u.floor ? ` · floor ${u.floor}` : ""}</span></div><span>{u.areaSqft ? `${u.areaSqft} sqft` : "—"}</span><span>{u.configuration || "—"}</span><span><Badge variant={kind === "sold" ? "destructive" : "secondary"}>{u.status || (kind === "sourced" ? "Newly seen" : "—")}</Badge></span><span className="price">{formatPrice(u.askPriceValue, u.askPriceDisplay)}</span><span>{formatDate(kind === "sourced" ? u.firstSourcedAt : kind === "sold" ? u.lastSeenAt : u.lastSeenAt)}</span></div>) : <EmptyState label={`No ${kind} units yet`} detail="The view will populate after a confirmed snapshot." />}</div> }
+function EmptyState({ label, detail }: { label: string; detail: string }) { return <div className="empty-state"><span className="eyebrow">QUIET FOR NOW</span><h3>{label}</h3><p>{detail}</p></div>; }
+function HistoryRow({ snapshot }: { snapshot: any }) { const assets = trpc.snapshotAssets.useQuery({ snapshotId: snapshot.id }); return <div className="history-row"><div className="history-date"><span className="eyebrow">SNAPSHOT</span><strong>{formatDate(snapshot.snapshotDate)}</strong></div><div><strong>{snapshot.unitCount} units confirmed</strong><p>{snapshot.sourceFileCount} source screenshots · {snapshot.completenessScore}% completeness</p></div><div className="history-warning">{snapshot.warningMessage ? <><CircleAlert size={15} /> Review noted</> : <><Check size={15} /> Clean confirmation</>}</div><div className="asset-links">{assets.data?.map((a: any) => <a key={a.id} href={a.storageUrl} target="_blank" rel="noreferrer"><FileImage size={14} /> {a.fileName}</a>)}</div></div>; }
+function ReviewPanel({ review, counts, onConfirm, confirming, onReset }: { review: any; counts: any; onConfirm: () => void; confirming: boolean; onReset: () => void }) { return <div className="review-panel"><div className="review-top"><div><span className="eyebrow">EXTRACTION COMPLETE</span><h3>Review before committing</h3><p>{review.units.length} unique units extracted from {review.assets.length} screenshots.</p></div><div className="score-ring"><strong>{review.completenessScore}%</strong><span>complete</span></div></div>{review.warning && <Alert variant="destructive"><CircleAlert size={16} /><div><AlertTitle>Potentially incomplete upload</AlertTitle><AlertDescription>{review.warning} Missing units are not marked sold until you confirm.</AlertDescription></div></Alert>}<div className="review-stats"><div><Plus size={16} /><strong>{counts.sourced}</strong><span>Sourced</span></div><div><TrendingDown size={16} /><strong>{counts.sold}</strong><span>Potentially sold</span></div><div><TrendingUp size={16} /><strong>{counts.updated}</strong><span>Updated</span></div></div><div className="review-table"><div className="table-head"><span>Unit</span><span>Area</span><span>Type</span><span>Floor</span><span>Status</span><span>Price</span></div>{review.units.slice(0, 12).map((u: any) => <div className="table-row" key={u.unitNumber + u.societyName}><div><strong>{u.societyName}</strong><span>{u.unitNumber}</span></div><span>{u.areaSqft || "—"}</span><span>{u.configuration || "—"}</span><span>{u.floor || "—"}</span><span>{u.status || "—"}</span><span className="price">{formatPrice(u.askPriceValue, u.askPriceDisplay)}</span></div>)}</div>{review.units.length > 12 && <p className="table-foot">Showing 12 of {review.units.length} extracted units. Full records will be committed on confirmation.</p>}<div className="review-actions"><Button variant="outline" onClick={onReset}>Discard review</Button><Button className="ink-button" onClick={onConfirm} disabled={confirming}>{confirming ? <><Loader2 className="spin" size={16} /> Confirming…</> : <><Check size={16} /> Confirm snapshot</>}</Button></div></div>; }

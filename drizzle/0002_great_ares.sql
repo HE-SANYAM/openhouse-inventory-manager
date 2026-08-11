@@ -1,0 +1,1 @@
+ALTER TABLE `change_events` MODIFY COLUMN `eventType` enum('sourced','existing','updated','sold','reappeared','potentially_sold','price_changed') NOT NULL;
