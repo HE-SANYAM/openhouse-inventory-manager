@@ -1,5 +1,8 @@
 import type { Express } from "express";
+import path from "path";
 import { ENV } from "./env";
+
+const LOCAL_UPLOAD_DIR = path.join(process.cwd(), "uploads");
 
 export function registerStorageProxy(app: Express) {
   app.get("/manus-storage/*", async (req, res) => {
@@ -10,7 +13,16 @@ export function registerStorageProxy(app: Express) {
     }
 
     if (!ENV.forgeApiUrl || !ENV.forgeApiKey) {
-      res.status(500).send("Storage proxy not configured");
+      // Self-hosted fallback: files were written to local disk by storage.ts.
+      const filePath = path.join(LOCAL_UPLOAD_DIR, key);
+      if (!filePath.startsWith(LOCAL_UPLOAD_DIR)) {
+        res.status(400).send("Invalid storage key");
+        return;
+      }
+      res.set("Cache-Control", "no-store");
+      res.sendFile(filePath, err => {
+        if (err) res.status(404).send("File not found");
+      });
       return;
     }
 

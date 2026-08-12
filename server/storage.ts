@@ -1,8 +1,19 @@
-// Preconfigured storage helpers for Manus WebDev templates
-// Uploads via Forge Server presigned URL to S3 (PUT direct).
-// Downloads return /manus-storage/{key} paths served via 307 redirect.
+// Storage helpers for the Manus WebDev template.
+// On Manus hosting: uploads via Forge Server presigned URL to S3 (PUT direct),
+// downloads return /manus-storage/{key} paths served via 307 redirect.
+// Self-hosted (no BUILT_IN_FORGE_API_URL/KEY configured): falls back to the
+// local filesystem under ./uploads, served back through the same
+// /manus-storage/{key} path by storageProxy.ts.
 
+import { promises as fs } from "fs";
+import path from "path";
 import { ENV } from "./_core/env";
+
+const LOCAL_UPLOAD_DIR = path.join(process.cwd(), "uploads");
+
+function hasForgeConfig(): boolean {
+  return Boolean(ENV.forgeApiUrl && ENV.forgeApiKey);
+}
 
 function getForgeConfig() {
   const forgeUrl = ENV.forgeApiUrl;
@@ -28,13 +39,32 @@ function appendHashSuffix(relKey: string): string {
   return `${relKey.slice(0, lastDot)}_${hash}${relKey.slice(lastDot)}`;
 }
 
+function toBuffer(data: Buffer | Uint8Array | string): Buffer {
+  return typeof data === "string" ? Buffer.from(data) : Buffer.from(data);
+}
+
+async function localStoragePut(
+  key: string,
+  data: Buffer | Uint8Array | string,
+): Promise<{ key: string; url: string }> {
+  const filePath = path.join(LOCAL_UPLOAD_DIR, key);
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, toBuffer(data));
+  return { key, url: `/manus-storage/${key}` };
+}
+
 export async function storagePut(
   relKey: string,
   data: Buffer | Uint8Array | string,
   contentType = "application/octet-stream",
 ): Promise<{ key: string; url: string }> {
-  const { forgeUrl, forgeKey } = getForgeConfig();
   const key = appendHashSuffix(normalizeKey(relKey));
+
+  if (!hasForgeConfig()) {
+    return localStoragePut(key, data);
+  }
+
+  const { forgeUrl, forgeKey } = getForgeConfig();
 
   // 1. Get presigned PUT URL from Forge
   const presignUrl = new URL("v1/storage/presign/put", forgeUrl + "/");

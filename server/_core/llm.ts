@@ -340,8 +340,6 @@ const fetchWithBackoff = async (
 };
 
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
-  assertApiKey();
-
   const {
     messages,
     tools,
@@ -402,7 +400,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   }
 
   let apiKey = ENV.forgeApiKey;
-  let customClaudeKey = "";
+  let customClaudeKey = ENV.anthropicApiKey || "";
   try {
     const { getDb } = await import("../db");
     const { systemConfig } = await import("../../drizzle/schema");
@@ -415,7 +413,13 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
       }
     }
   } catch (err) {
-    // fallback to env
+    console.warn("[LLM] Failed to read admin-configured Claude key from DB, falling back to env:", err);
+  }
+
+  if (!customClaudeKey && !apiKey) {
+    throw new Error(
+      "No LLM credentials configured. Set ANTHROPIC_API_KEY in the server environment, configure a Claude API key in Admin Settings, or set BUILT_IN_FORGE_API_KEY (Manus hosting only)."
+    );
   }
 
   // If a custom Anthropic Claude API key is configured, use Anthropic's Messages API directly
@@ -469,7 +473,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     }
 
     const anthropicPayload: Record<string, unknown> = {
-      model: model && model.includes("claude") ? model : "claude-3-5-sonnet-20241022",
+      model: model && model.includes("claude") ? model : ENV.anthropicModel,
       max_tokens: resolvedMaxTokens || 4096,
       system: systemText,
       messages: anthropicMessages,
