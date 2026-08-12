@@ -8,7 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc } from "@/lib/trpc";
-import { ArrowUpRight, BarChart3, Check, ChevronRight, CircleAlert, Download, FileImage, FileSpreadsheet, FileText, Filter, History, Home as HomeIcon, Loader2, LogOut, Menu as MenuIcon, Minus, Plus, Search, Sparkles, TrendingDown, TrendingUp, UploadCloud, X } from "lucide-react";
+import { ArrowUpRight, BarChart3, Check, ChevronRight, CircleAlert, Download, FileImage, FileSpreadsheet, FileText, Filter, History, Home as HomeIcon, Loader2, LogOut, Menu as MenuIcon, Minus, Plus, Search, Shield, Sparkles, TrendingDown, TrendingUp, UploadCloud, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { startLogin } from "@/const";
@@ -30,8 +30,7 @@ export default function Home() {
   const [files, setFiles] = useState<FilePayload[]>([]);
   const [review, setReview] = useState<any | null>(null);
   const [dragging, setDragging] = useState(false);
-  const [resetOpen, setResetOpen] = useState(false);
-  const [resetPassword, setResetPassword] = useState("");
+
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const dashboard = trpc.dashboard.useQuery(undefined, { enabled: !!user });
@@ -58,17 +57,7 @@ export default function Home() {
     onError: e => toast.error(e.message)
   });
 
-  const resetInventory = trpc.resetInventory.useMutation({
-    onSuccess: () => {
-      toast.success("Inventory fully reset");
-      setResetOpen(false);
-      setResetPassword("");
-      dashboard.refetch();
-      inventory.refetch();
-      setTab("dashboard");
-    },
-    onError: e => toast.error(e.message)
-  });
+
 
   const activeUnits = inventory.data ?? [];
   const trend = dashboard.data?.trend ?? [];
@@ -308,9 +297,9 @@ export default function Home() {
             <div className="text-xs font-mono text-slate-400 hidden sm:block">
               {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
             </div>
-            <Button variant="outline" onClick={() => setResetOpen(true)} className="mntn-button-outline mntn-reset-action border-red-500/40 text-red-300 hover:text-red-200 text-xs py-2 px-3">
-              Reset inventory
-            </Button>
+            <a href="/admin" className="mntn-button-outline text-xs py-2 px-3 inline-flex items-center gap-1.5 font-mono">
+              <Shield size={13} className="text-[#c9ff3f]" /> Admin Panel
+            </a>
             <Button onClick={() => setTab("upload")} className="mntn-button text-xs py-2 px-4">
               <UploadCloud size={14} /> <span className="hidden sm:inline">Upload report</span><span className="sm:hidden">Upload</span>
             </Button>
@@ -602,36 +591,7 @@ export default function Home() {
           </TabsContent>
         </Tabs>
 
-        {/* Reset Dialog */}
-        <Dialog open={resetOpen} onOpenChange={setResetOpen}>
-          <DialogContent className="bg-[#0d0d0d] border border-white/20 text-white">
-            <DialogHeader>
-              <DialogTitle className="font-serif text-2xl">Reset entire inventory?</DialogTitle>
-              <DialogDescription className="text-slate-400">
-                This permanently erases all confirmed snapshots, units, change events, and stored screenshot assets. Users and authentication remain intact. This action cannot be undone.
-              </DialogDescription>
-            </DialogHeader>
-            <Input
-              type="password"
-              placeholder="Enter reset password"
-              value={resetPassword}
-              onChange={e => setResetPassword(e.target.value)}
-              className="bg-[#050505] border-white/20 text-white"
-            />
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setResetOpen(false)} className="border-white/20 text-white hover:bg-white/10">
-                Cancel
-              </Button>
-              <Button
-                disabled={!resetPassword || resetInventory.isPending}
-                onClick={() => resetInventory.mutate({ password: resetPassword })}
-                className="bg-red-600 hover:bg-red-700 text-white"
-              >
-                {resetInventory.isPending ? "Resetting..." : "Confirm reset"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+
       </div>
     </div>
   );

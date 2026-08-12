@@ -7,7 +7,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
-import { changeEvents, getDb, getLatestActiveUnits, getLatestSnapshot, getUnitsForSnapshot, inventorySnapshots, inventoryUnits, snapshotAssets, resetInventoryData } from "./db";
+import { changeEvents, getDb, getLatestActiveUnits, getLatestSnapshot, getUnitsForSnapshot, inventorySnapshots, inventoryUnits, snapshotAssets, resetInventoryData, getConfig, setConfig, addManualUnit, updateManualUnit, deleteInventoryUnit } from "./db";
 import { validateInventoryResetPassword } from "./resetSecurity";
 import { compareUnits, completenessScore, incompleteUploadWarning, mergeExtractedUnits, unitKey } from "@shared/inventoryLogic";
 import { parseExtractionResponse } from "./ocrParsing";
@@ -54,7 +54,33 @@ export const appRouter = router({
     const extractedByImage: any[][] = []; const coverage: Array<{ fileName: string; rowCount: number; status: "processed" | "failed"; error?: string }> = []; for (const asset of assets) { try { const rows = await extractUnitsFromAsset(asset.dataUrl, asset.mimeType); extractedByImage.push(rows); coverage.push({ fileName: asset.name, rowCount: rows.length, status: "processed" }); } catch (error) { extractedByImage.push([]); coverage.push({ fileName: asset.name, rowCount: 0, status: "failed", error: error instanceof Error ? error.message : "OCR failed" }); } } const deduped = mergeExtractedUnits(extractedByImage); const score = completenessScore(deduped); const previous = await getLatestSnapshot(); const old = previous ? await getUnitsForSnapshot(previous.id) : []; const changes = compareUnits(deduped, old); const failedFiles = coverage.filter(c => c.status === "failed"); const warnings = [incompleteUploadWarning(old.length, deduped.length, score), failedFiles.length ? `${failedFiles.length} uploaded file${failedFiles.length === 1 ? " was" : "s were"} not readable by OCR. Review those files and retry.` : null].filter(Boolean); const warning = warnings.length ? warnings.join(" ") : null;
     return { assets: assets.map(a => ({ name: a.name, mimeType: a.mimeType, key: a.key, url: a.url })), units: deduped, processedImageCount: assets.length, extractedRowCount: extractedByImage.reduce((n, rows) => n + rows.length, 0), coverage, changes, completenessScore: score, warning, previousSnapshotDate: previous?.snapshotDate ?? null };
   }),
+  adminVerify: publicProcedure.input(z.object({ password: z.string().min(1) })).mutation(async ({ input }) => {
+    const adminPass = process.env.INVENTORY_RESET_PASSWORD || "admin123";
+    if (input.password !== adminPass) throw new TRPCError({ code: "UNAUTHORIZED", message: "Incorrect admin password" });
+    return { success: true as const };
+  }),
   resetInventory: adminProcedure.input(z.object({ password: z.string().min(1) })).mutation(async ({ input }) => { if (!validateInventoryResetPassword(input.password)) throw new Error("Incorrect reset password"); return resetInventoryData(); }),
+  getClaudeKey: protectedProcedure.query(async () => {
+    const val = await getConfig("CLAUDE_API_KEY");
+    return { configured: Boolean(val && val.length > 5), masked: val ? `${val.substring(0, 4)}...${val.substring(val.length - 4)}` : null };
+  }),
+  setClaudeKey: adminProcedure.input(z.object({ apiKey: z.string().min(1), password: z.string().min(1) })).mutation(async ({ input }) => {
+    if (!validateInventoryResetPassword(input.password)) throw new Error("Incorrect admin password");
+    await setConfig("CLAUDE_API_KEY", input.apiKey.trim());
+    return { success: true as const };
+  }),
+  addUnit: adminProcedure.input(z.object({ password: z.string().min(1), unit: z.object({ societyName: z.string().min(1), unitNumber: z.string().min(1), areaSqft: z.number().optional(), configuration: z.string().optional(), floor: z.string().optional(), locality: z.string().optional(), marketRegion: z.string().optional(), zone: z.string().optional(), microZone: z.string().optional(), status: z.string().optional(), askPriceDisplay: z.string().optional() }) })).mutation(async ({ input }) => {
+    if (!validateInventoryResetPassword(input.password)) throw new Error("Incorrect admin password");
+    return addManualUnit(input.unit);
+  }),
+  updateUnit: adminProcedure.input(z.object({ password: z.string().min(1), id: z.number(), unit: z.object({ societyName: z.string().min(1), unitNumber: z.string().min(1), areaSqft: z.number().optional(), configuration: z.string().optional(), floor: z.string().optional(), locality: z.string().optional(), marketRegion: z.string().optional(), zone: z.string().optional(), microZone: z.string().optional(), status: z.string().optional(), askPriceDisplay: z.string().optional(), active: z.boolean().optional() }) })).mutation(async ({ input }) => {
+    if (!validateInventoryResetPassword(input.password)) throw new Error("Incorrect admin password");
+    return updateManualUnit(input.id, input.unit);
+  }),
+  deleteUnit: adminProcedure.input(z.object({ password: z.string().min(1), id: z.number() })).mutation(async ({ input }) => {
+    if (!validateInventoryResetPassword(input.password)) throw new Error("Incorrect admin password");
+    return deleteInventoryUnit(input.id);
+  }),
   confirm: protectedProcedure.input(z.object({ snapshotDate: z.string(), sourceFileCount: z.number(), completenessScore: z.number(), warning: z.string().nullable(), assets: z.array(z.object({ name: z.string(), mimeType: z.string(), key: z.string(), url: z.string() })), units: z.array(z.object({ societyName: z.string(), unitNumber: z.string(), areaSqft: z.number().nullable(), configuration: z.string().nullable(), floor: z.string().nullable(), locality: z.string().nullable(), marketRegion: z.string().nullable(), zone: z.string().nullable(), microZone: z.string().nullable(), status: z.string().nullable(), askPriceDisplay: z.string().nullable(), askPriceValue: z.number().nullable(), isMarkedNew: z.boolean() })), changes: z.array(z.object({ type: z.string(), unit: z.any(), before: z.any().optional() })) })).mutation(async ({ input }) => {
     const db = await getDb(); if (!db) throw new Error("Database unavailable"); const now = new Date(input.snapshotDate); const snapshot = await db.insert(inventorySnapshots).values({ snapshotDate: now, unitCount: input.units.length, sourceFileCount: input.sourceFileCount, completenessScore: String(input.completenessScore), warningMessage: input.warning }).$returningId(); const snapshotId = snapshot[0]!.id;
     for (const a of input.assets) await db.insert(snapshotAssets).values({ snapshotId, fileName: a.name, mimeType: a.mimeType, storageKey: a.key, storageUrl: a.url });

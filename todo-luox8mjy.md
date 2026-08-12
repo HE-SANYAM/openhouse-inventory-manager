@@ -44,3 +44,9 @@
 - [ ] Harden responsive layouts so hero content and controls remain inside the viewport.
 - [ ] Add or update regression coverage for the visibility contract and preserved tracker actions.
 - [ ] Verify desktop/mobile screenshots and save a new visibility-fix checkpoint.
+
+- [ ] Add server-side and client-side support for admin authentication, manual unit create/edit/delete, reset/removal relocation, and secure Claude API key configuration.
+- [ ] Implement database storage for admin-configured Claude API keys and manual unit management.
+- [ ] Build the admin control panel UI with password verification, unit inventory table + manual add/edit dialog, reset/removal controls, and Claude API key settings.
+- [ ] Add regression tests covering admin procedures, Claude key persistence, and manual unit operations.
+- [ ] Verify responsiveness and save a final secured-admin project checkpoint.

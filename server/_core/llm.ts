@@ -219,7 +219,7 @@ const resolveApiUrl = () =>
 
 const assertApiKey = () => {
   if (!ENV.forgeApiKey) {
-    throw new Error("OPENAI_API_KEY is not configured");
+    // Check if Claude key might be configured in DB, but we allow fallback
   }
 };
 
@@ -401,11 +401,27 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.response_format = normalizedResponseFormat;
   }
 
+  let apiKey = ENV.forgeApiKey;
+  try {
+    const { getDb } = await import("../db");
+    const { systemConfig } = await import("../../drizzle/schema");
+    const { eq } = await import("drizzle-orm");
+    const db = await getDb();
+    if (db) {
+      const rows = await db.select().from(systemConfig).where(eq(systemConfig.configKey, "CLAUDE_API_KEY")).limit(1);
+      if (rows.length > 0 && rows[0].configValue && rows[0].configValue.trim().length > 5) {
+        apiKey = rows[0].configValue.trim();
+      }
+    }
+  } catch (err) {
+    // fallback to env
+  }
+
   const response = await fetchWithBackoff(resolveApiUrl(), {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
+      authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify(payload),
   });

@@ -69,3 +69,13 @@ export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type InventoryUnit = typeof inventoryUnits.$inferSelect;
 export type Snapshot = typeof inventorySnapshots.$inferSelect;
+
+
+export const systemConfig = mysqlTable("system_config", {
+  id: int("id").autoincrement().primaryKey(),
+  configKey: varchar("configKey", { length: 128 }).notNull().unique(),
+  configValue: text("configValue").notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SystemConfig = typeof systemConfig.$inferSelect;
