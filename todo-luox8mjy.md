@@ -50,3 +50,4 @@
 - [x] Build the admin control panel UI with password verification, unit inventory table + manual add/edit dialog, reset/removal controls, and Claude API key settings.
 - [x] Add regression tests covering admin procedures, Claude key persistence, and manual unit operations.
 - [x] Verify responsiveness and save a final secured-admin project checkpoint.
+- [ ] Diagnose OCR extraction failures and Claude API key routing in server logs and invokeLLM.

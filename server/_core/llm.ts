@@ -402,6 +402,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   }
 
   let apiKey = ENV.forgeApiKey;
+  let customClaudeKey = "";
   try {
     const { getDb } = await import("../db");
     const { systemConfig } = await import("../../drizzle/schema");
@@ -410,11 +411,127 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     if (db) {
       const rows = await db.select().from(systemConfig).where(eq(systemConfig.configKey, "CLAUDE_API_KEY")).limit(1);
       if (rows.length > 0 && rows[0].configValue && rows[0].configValue.trim().length > 5) {
-        apiKey = rows[0].configValue.trim();
+        customClaudeKey = rows[0].configValue.trim();
       }
     }
   } catch (err) {
     // fallback to env
+  }
+
+  // If a custom Anthropic Claude API key is configured, use Anthropic's Messages API directly
+  if (customClaudeKey && (customClaudeKey.startsWith("sk-ant-") || customClaudeKey.length > 20)) {
+    // Convert OpenAI-style chat messages and schema to Anthropic format
+    let systemText = "You extract real-estate inventory tables from images and PDF reports. Return only structured JSON.";
+    const anthropicMessages: Array<{ role: string; content: any }> = [];
+    
+    for (const msg of messages) {
+      if (msg.role === "system") {
+        const parts = ensureArray(msg.content);
+        systemText = parts.map(p => typeof p === "string" ? p : p.type === "text" ? p.text : "").join("\n");
+      } else {
+        const parts = ensureArray(msg.content);
+        const anthropicContent: any[] = [];
+        for (const p of parts) {
+          if (typeof p === "string") {
+            anthropicContent.push({ type: "text", text: p });
+          } else if (p.type === "text") {
+            anthropicContent.push({ type: "text", text: p.text });
+          } else if (p.type === "image_url") {
+            // image_url url is data:image/jpeg;base64,...
+            const urlMatch = p.image_url.url.match(/^data:([^;]+);base64,(.+)$/);
+            if (urlMatch) {
+              anthropicContent.push({
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: urlMatch[1],
+                  data: urlMatch[2],
+                },
+              });
+            }
+          } else if (p.type === "file_url") {
+            // PDF file_url
+            const urlMatch = p.file_url.url.match(/^data:([^;]+);base64,(.+)$/);
+            if (urlMatch) {
+              anthropicContent.push({
+                type: "document",
+                source: {
+                  type: "base64",
+                  media_type: urlMatch[1],
+                  data: urlMatch[2],
+                },
+              });
+            }
+          }
+        }
+        anthropicMessages.push({ role: msg.role === "assistant" ? "assistant" : "user", content: anthropicContent.length === 1 && anthropicContent[0].type === "text" ? anthropicContent[0].text : anthropicContent });
+      }
+    }
+
+    const anthropicPayload: Record<string, unknown> = {
+      model: model || "claude-3-5-sonnet-20241022",
+      max_tokens: resolvedMaxTokens || 4096,
+      system: systemText,
+      messages: anthropicMessages,
+    };
+
+    if (normalizedResponseFormat && normalizedResponseFormat.type === "json_schema") {
+      const schemaName = normalizedResponseFormat.json_schema.name;
+      const jsonSchema = normalizedResponseFormat.json_schema.schema;
+      anthropicPayload.tools = [{
+        name: schemaName,
+        description: "Extract structured inventory units according to schema",
+        input_schema: jsonSchema,
+      }];
+      anthropicPayload.tool_choice = { type: "tool", name: schemaName };
+    }
+
+    const anthResp = await fetchWithBackoff("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": customClaudeKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify(anthropicPayload),
+    });
+
+    if (!anthResp.ok) {
+      const errorText = await anthResp.text();
+      throw new Error(`Claude API invoke failed: ${anthResp.status} ${anthResp.statusText} – ${errorText}`);
+    }
+
+    const anthData = await anthResp.json() as any;
+    // Parse Anthropic response (tool_use or text content)
+    let textOutput = "";
+    if (anthData.content) {
+      for (const block of anthData.content) {
+        if (block.type === "text") {
+          textOutput += block.text;
+        } else if (block.type === "tool_use" && block.input) {
+          textOutput = JSON.stringify(block.input);
+        }
+      }
+    }
+
+    return {
+      id: anthData.id || "msg_anthropic",
+      created: Date.now(),
+      model: anthData.model || "claude-3-5-sonnet",
+      choices: [{
+        index: 0,
+        message: {
+          role: "assistant",
+          content: textOutput,
+        },
+        finish_reason: anthData.stop_reason || "stop",
+      }],
+      usage: anthData.usage ? {
+        prompt_tokens: anthData.usage.input_tokens || 0,
+        completion_tokens: anthData.usage.output_tokens || 0,
+        total_tokens: (anthData.usage.input_tokens || 0) + (anthData.usage.output_tokens || 0),
+      } : undefined,
+    };
   }
 
   const response = await fetchWithBackoff(resolveApiUrl(), {
