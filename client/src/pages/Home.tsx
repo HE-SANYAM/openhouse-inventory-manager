@@ -141,20 +141,20 @@ export default function Home() {
   // Unauthenticated Framer-inspired Landing View
   if (!user && !loading) {
     return (
-      <div className="min-h-screen bg-[#050505] text-white selection:bg-[#c9ff3f]/30 selection:text-[#c9ff3f]">
+      <div className="min-h-screen biogax-page biogax-landing bg-[#f3f6ed] text-[#18372b] selection:bg-[#d9fb68]/40 selection:text-[#18372b]">
         <div className="mntn-shell">
           <header className="mntn-topbar">
             <a href="/" className="mntn-brand" aria-label="Openhouse home">
               OPENHOUSE <span className="text-[#c9ff3f]">//</span> TRACKER
             </a>
             <nav className="mntn-nav-links">
-              <a href="#features">Home</a>
-              <a href="#methodology">Workflow</a>
-              <a href="#about">About</a>
+              <a href="#features">Overview</a>
+              <a href="#methodology">How it works</a>
+              <a href="#methodology">NCR zones</a>
             </nav>
             <div className="mntn-topbar-actions">
               <Button onClick={() => startLogin()} className="mntn-button">
-                Contact us
+                Get started
               </Button>
               <button
                 className="mntn-mobile-menu-toggle"
@@ -178,10 +178,10 @@ export default function Home() {
 
           <section className="mntn-hero">
             <div>
-              <span className="eyebrow">Real estate intelligence / 2026</span>
-              <h1>Openhouse <em>in motion.</em></h1>
+              <span className="eyebrow">Property operations / 2026</span>
+              <h1>Property intelligence <em>for modern teams.</em></h1>
               <p>
-                A focused workspace for the people who need to know what changed. Upload the daily bulletin, review every OCR decision, and keep the inventory ledger precise.
+                A calm workspace for the people who need to know what changed. Turn daily bulletins into a clear, searchable inventory across every NCR corridor.
               </p>
               <div className="flex flex-wrap gap-3 items-center">
                 <Button onClick={() => startLogin()} className="mntn-button">
@@ -194,9 +194,9 @@ export default function Home() {
             </div>
             <div className="mntn-section-media">
               <div className="p-8 text-center">
-                <span className="eyebrow">Latest snapshot / 001</span>
+                <span className="eyebrow">Daily property brief / 001</span>
                 <h3 className="font-serif text-2xl font-medium mb-2">No report yet</h3>
-                <p className="text-sm text-slate-400">Your next bulletin becomes the source of truth for every unit, price, and status.</p>
+                <p className="text-sm text-slate-400">Your next bulletin becomes the source of truth for every unit, price, zone, and status.</p>
                 <div className="mt-6 flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.16em] text-[#c9ff3f]"><span>Awaiting upload</span><Sparkles size={14} /></div>
               </div>
             </div>
@@ -207,9 +207,9 @@ export default function Home() {
             <div className="mntn-large-number">01</div>
             <div className="mntn-section-content">
               <span className="eyebrow">About the workspace</span>
-              <h2>Know what changed. Before it matters.</h2>
+              <h2>See the whole property picture.</h2>
               <p>
-                Openhouse turns a stack of report screenshots into a readable daily record. New units, quiet removals, and price changes are surfaced before anything is committed to the permanent ledger.
+                Openhouse turns a stack of report screenshots into a readable daily record. New units, quiet removals, price changes, and NCR geographies are surfaced before anything is committed to the permanent ledger.
               </p>
               <Button onClick={() => startLogin()} className="mntn-button-outline">
                 Enter the workspace <ChevronRight size={15} />
@@ -227,10 +227,10 @@ export default function Home() {
           <section className="mntn-section-block reverse">
             <div className="mntn-large-number">02</div>
             <div className="mntn-section-content">
-              <span className="eyebrow">02 / OCR review</span>
-              <h2>Every screenshot gets a second look.</h2>
+              <span className="eyebrow">02 / OCR intake</span>
+              <h2>Every bulletin gets a second look.</h2>
               <p>
-                Upload one image or a full bulletin set. The review layer groups extracted units, flags missing fields, and keeps the human decision in the loop before the ledger moves.
+                Upload a PDF or a full image set. The review layer groups extracted units, flags missing fields, and keeps the human decision in the loop before the ledger moves.
               </p>
               <Button onClick={() => startLogin()} className="mntn-button-outline">
                 See the review flow <ChevronRight size={15} />
@@ -239,7 +239,7 @@ export default function Home() {
             <div className="mntn-section-media">
               <div className="p-8 text-center">
                 <UploadCloud className="mx-auto text-[#c9ff3f] mb-4" size={48} />
-                <span className="text-xs uppercase tracking-widest text-slate-400">Multi-File Screenshot Ingestion</span>
+                <span className="text-xs uppercase tracking-widest text-slate-400">PDF + Image Bulletin Intake</span>
               </div>
             </div>
           </section>
@@ -248,10 +248,10 @@ export default function Home() {
           <section id="methodology" className="mntn-section-block">
             <div className="mntn-large-number">03</div>
             <div className="mntn-section-content">
-              <span className="eyebrow">03 / The ledger</span>
-              <h2>Keep the record moving forward.</h2>
+              <span className="eyebrow">03 / The regional ledger</span>
+              <h2>Keep every NCR zone in view.</h2>
               <p>
-                Confirmed snapshots become a calm, searchable history of the market. Revisit source images, compare daily movement, and understand the story behind every unit.
+                Confirmed snapshots become a calm, searchable history of the market. Filter Gurgaon, Noida, Ghaziabad, and new corridors as your business grows, then export the exact view you need.
               </p>
               <Button onClick={() => startLogin()} className="mntn-button">
                 Open the ledger <ChevronRight size={15} />
@@ -267,15 +267,15 @@ export default function Home() {
 
           <footer className="mt-24 pt-12 border-t border-white/10 flex flex-col md:flex-row justify-between items-center gap-6 text-sm text-slate-400">
             <div>
-              <span className="font-serif font-bold text-white tracking-widest">MNTN / OPENHOUSE</span>
-              <p className="mt-2">Get out there & discover your next luxury real estate destination.</p>
+              <span className="font-serif font-bold text-white tracking-widest">OPENHOUSE / BIOGAX</span>
+              <p className="mt-2">Make every property bulletin easier to read, review, and act on.</p>
             </div>
             <div className="flex gap-8">
               <a href="#features" className="hover:text-white transition-colors">Intelligence</a>
               <a href="#methodology" className="hover:text-white transition-colors">Methodology</a>
               <a href="#about" className="hover:text-white transition-colors">About</a>
             </div>
-            <p className="text-xs">Copyright 2026 MNTN, Inc. All rights reserved.</p>
+            <p className="text-xs">Copyright 2026 Openhouse. Inventory intelligence for modern teams.</p>
           </footer>
         </div>
       </div>
@@ -293,7 +293,7 @@ export default function Home() {
 
   // Authenticated Framer-inspired Tracker Workspace
   return (
-    <div className="min-h-screen bg-[#050505] text-white selection:bg-[#c9ff3f]/30 selection:text-[#c9ff3f]">
+    <div className="min-h-screen biogax-page biogax-workspace bg-[#f3f6ed] text-[#18372b] selection:bg-[#d9fb68]/40 selection:text-[#18372b]">
       <div className="mntn-shell">
         <header className="mntn-topbar">
           <div className="flex items-center gap-6">
@@ -366,8 +366,8 @@ export default function Home() {
             <div className="mntn-hero !py-12">
               <div>
                 <span className="eyebrow">The Morning Edition</span>
-                <h1>The market, <em>in motion.</em></h1>
-                <p>A crystal-clear editorial view of what is active, what just arrived, and what quietly left the inventory ledger today.</p>
+                <h1>Property inventory, <em>in view.</em></h1>
+                <p>A clear daily view of what is active, what just arrived, and what quietly left the inventory ledger today.</p>
                 <Button onClick={() => setTab("upload")} className="mntn-button">
                   Upload new bulletin <ChevronRight size={15} />
                 </Button>

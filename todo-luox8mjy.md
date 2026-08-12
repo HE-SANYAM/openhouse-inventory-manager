@@ -28,3 +28,12 @@
 - [x] Preserve existing inventory, OCR, reset, history, profile, and sign-out behavior while applying the new design.
 - [x] Add regression coverage for zones, export shaping, supported uploads, and preserved auth behavior.
 - [x] Verify desktop/mobile flows and save a new checkpoint.
+
+- [x] Inspect the supplied Biogax Lite Framer project reference and document its visual system.
+- [x] Translate the Biogax theme into Open House Tracker-specific navigation, typography, color, cards, and responsive decisions.
+- [x] Apply the Biogax-inspired theme while preserving NCR filters, Excel exports, PDF/image OCR, history, reset, profile, and sign-out flows.
+- [x] Add or update regression coverage for preserved tracker behavior.
+- [x] Verify desktop/mobile presentation and save a new Biogax-themed checkpoint.
+
+- [x] Add a focused Biogax theme contract regression test covering landing/workspace markers and preserved tracker hooks.
+- [x] Save a new checkpoint after the Biogax theme changes and attach its project version.
