@@ -59,4 +59,16 @@ describe("auth.logout", () => {
       path: "/",
     });
   });
+
+  it("clears the session cookie for a guest sign-out action", async () => {
+    const { ctx, clearedCookies } = createAuthContext();
+    ctx.user = undefined;
+    const caller = appRouter.createCaller(ctx);
+
+    const result = await caller.auth.logout();
+
+    expect(result).toEqual({ success: true });
+    expect(clearedCookies).toHaveLength(1);
+    expect(clearedCookies[0]?.name).toBe(COOKIE_NAME);
+  });
 });

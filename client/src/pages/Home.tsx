@@ -8,7 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc } from "@/lib/trpc";
-import { ArrowUpRight, BarChart3, Check, ChevronRight, CircleAlert, FileImage, Filter, History, Home as HomeIcon, Loader2, LogOut, Minus, Plus, Search, Sparkles, TrendingDown, TrendingUp, UploadCloud, X } from "lucide-react";
+import { ArrowUpRight, BarChart3, Check, ChevronRight, CircleAlert, FileImage, Filter, History, Home as HomeIcon, Loader2, LogOut, Menu as MenuIcon, Minus, Plus, Search, Sparkles, TrendingDown, TrendingUp, UploadCloud, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { startLogin } from "@/const";
@@ -27,6 +27,7 @@ export default function Home() {
   const [dragging, setDragging] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
   const [resetPassword, setResetPassword] = useState("");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const dashboard = trpc.dashboard.useQuery(undefined, { enabled: !!user });
   const inventory = trpc.inventory.useQuery({ search, sort }, { enabled: !!user });
@@ -108,46 +109,66 @@ export default function Home() {
     });
   };
 
-  // Unauthenticated MNTN-inspired Landing View
+  // Unauthenticated Framer-inspired Landing View
   if (!user && !loading) {
     return (
-      <div className="min-h-screen bg-[#0B1D26] text-white selection:bg-[#FBD33D]/30 selection:text-[#FBD33D]">
+      <div className="min-h-screen bg-[#050505] text-white selection:bg-[#c9ff3f]/30 selection:text-[#c9ff3f]">
         <div className="mntn-shell">
           <header className="mntn-topbar">
-            <a href="/" className="mntn-brand">
-              <span>MNTN / OPENHOUSE</span>
+            <a href="/" className="mntn-brand" aria-label="Openhouse home">
+              OPENHOUSE <span className="text-[#c9ff3f]">//</span> TRACKER
             </a>
-            <nav className="mntn-nav-links hidden md:flex">
-              <a href="#features">Inventory Intelligence</a>
-              <a href="#methodology">OCR Audit Trail</a>
-              <a href="#about">About MNTN</a>
+            <nav className="mntn-nav-links">
+              <a href="#features">Home</a>
+              <a href="#methodology">Workflow</a>
+              <a href="#about">About</a>
             </nav>
-            <Button onClick={() => startLogin()} className="mntn-button">
-              Sign In to Tracker
-            </Button>
+            <div className="mntn-topbar-actions">
+              <Button onClick={() => startLogin()} className="mntn-button">
+                Contact us
+              </Button>
+              <button
+                className="mntn-mobile-menu-toggle"
+                type="button"
+                aria-expanded={mobileMenuOpen}
+                aria-controls="landing-mobile-nav"
+                onClick={() => setMobileMenuOpen(open => !open)}
+              >
+                <MenuIcon size={14} /> Menu
+              </button>
+            </div>
           </header>
+          {mobileMenuOpen && (
+            <nav id="landing-mobile-nav" className="mntn-mobile-nav" aria-label="Mobile navigation">
+              <a href="#features" onClick={() => setMobileMenuOpen(false)}>Home</a>
+              <a href="#methodology" onClick={() => setMobileMenuOpen(false)}>Workflow</a>
+              <a href="#about" onClick={() => setMobileMenuOpen(false)}>About</a>
+              <button type="button" className="text-left text-[#c9ff3f]" onClick={() => startLogin()}>Sign in to tracker</button>
+            </nav>
+          )}
 
           <section className="mntn-hero">
             <div>
-              <span className="eyebrow">Real Estate Intelligence Guide</span>
-              <h1>Be Prepared For The <em>Mountains</em> And Beyond!</h1>
+              <span className="eyebrow">Real estate intelligence / 2026</span>
+              <h1>Openhouse <em>in motion.</em></h1>
               <p>
-                A rigorous, MNTN-inspired daily inventory tracker for upscale real estate developments. Track every sourced unit, price shift, and quiet exit with immaculate editorial precision.
+                A focused workspace for the people who need to know what changed. Upload the daily bulletin, review every OCR decision, and keep the inventory ledger precise.
               </p>
-              <div className="flex gap-4 items-center">
+              <div className="flex flex-wrap gap-3 items-center">
                 <Button onClick={() => startLogin()} className="mntn-button">
-                  Launch App <ChevronRight size={16} />
+                  Start tracking <ChevronRight size={16} />
                 </Button>
                 <a href="#features" className="mntn-button-outline">
-                  Explore workflow
+                  View workflow
                 </a>
               </div>
             </div>
             <div className="mntn-section-media">
               <div className="p-8 text-center">
-                <Sparkles className="mx-auto text-[#FBD33D] mb-4" size={40} />
-                <h3 className="font-serif text-2xl font-medium mb-2">Immaculate Ledger</h3>
-                <p className="text-sm text-slate-400">Zero database drift. Instant screenshot OCR confirmation.</p>
+                <span className="eyebrow">Latest snapshot / 001</span>
+                <h3 className="font-serif text-2xl font-medium mb-2">No report yet</h3>
+                <p className="text-sm text-slate-400">Your next bulletin becomes the source of truth for every unit, price, and status.</p>
+                <div className="mt-6 flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.16em] text-[#c9ff3f]"><span>Awaiting upload</span><Sparkles size={14} /></div>
               </div>
             </div>
           </section>
@@ -156,18 +177,18 @@ export default function Home() {
           <section id="features" className="mntn-section-block">
             <div className="mntn-large-number">01</div>
             <div className="mntn-section-content">
-              <span className="eyebrow">Get Started</span>
-              <h2>What level of inventory operator are you?</h2>
+              <span className="eyebrow">About the workspace</span>
+              <h2>Know what changed. Before it matters.</h2>
               <p>
-                Determining what changed in today's housing bulletin can be an exhaustive task. Our OCR engine parses multi-page inventory sheets, highlighting newly sourced properties and flagged sales before committing anything to the permanent ledger.
+                Openhouse turns a stack of report screenshots into a readable daily record. New units, quiet removals, and price changes are surfaced before anything is committed to the permanent ledger.
               </p>
               <Button onClick={() => startLogin()} className="mntn-button-outline">
-                Sign in to begin tracking <ChevronRight size={15} />
+                Enter the workspace <ChevronRight size={15} />
               </Button>
             </div>
             <div className="mntn-section-media">
               <div className="p-8 text-center">
-                <BarChart3 className="mx-auto text-[#FBD33D] mb-4" size={48} />
+                <BarChart3 className="mx-auto text-[#c9ff3f] mb-4" size={48} />
                 <span className="text-xs uppercase tracking-widest text-slate-400">Automated Daily Parsing</span>
               </div>
             </div>
@@ -177,18 +198,18 @@ export default function Home() {
           <section className="mntn-section-block reverse">
             <div className="mntn-large-number">02</div>
             <div className="mntn-section-content">
-              <span className="eyebrow">Hiking Essentials</span>
-              <h2>Picking the right inventory gear!</h2>
+              <span className="eyebrow">02 / OCR review</span>
+              <h2>Every screenshot gets a second look.</h2>
               <p>
-                The nice thing about beginning inventory management is that you don't really need any special gear—just your daily report screenshots and our deterministic audit rules. Detect completeness warnings automatically before any unit is marked sold.
+                Upload one image or a full bulletin set. The review layer groups extracted units, flags missing fields, and keeps the human decision in the loop before the ledger moves.
               </p>
               <Button onClick={() => startLogin()} className="mntn-button-outline">
-                Access secure audit trail <ChevronRight size={15} />
+                See the review flow <ChevronRight size={15} />
               </Button>
             </div>
             <div className="mntn-section-media">
               <div className="p-8 text-center">
-                <UploadCloud className="mx-auto text-[#FBD33D] mb-4" size={48} />
+                <UploadCloud className="mx-auto text-[#c9ff3f] mb-4" size={48} />
                 <span className="text-xs uppercase tracking-widest text-slate-400">Multi-File Screenshot Ingestion</span>
               </div>
             </div>
@@ -198,18 +219,18 @@ export default function Home() {
           <section id="methodology" className="mntn-section-block">
             <div className="mntn-large-number">03</div>
             <div className="mntn-section-content">
-              <span className="eyebrow">Where You Go Is The Key</span>
-              <h2>Understand Your Map & Timing.</h2>
+              <span className="eyebrow">03 / The ledger</span>
+              <h2>Keep the record moving forward.</h2>
               <p>
-                To start, review price velocity and regional absorption rates over time. Every confirmed snapshot retains its source images for compliance, auditability, and absolute peace of mind.
+                Confirmed snapshots become a calm, searchable history of the market. Revisit source images, compare daily movement, and understand the story behind every unit.
               </p>
               <Button onClick={() => startLogin()} className="mntn-button">
-                Get Started Now <ChevronRight size={15} />
+                Open the ledger <ChevronRight size={15} />
               </Button>
             </div>
             <div className="mntn-section-media">
               <div className="p-8 text-center">
-                <History className="mx-auto text-[#FBD33D] mb-4" size={48} />
+                <History className="mx-auto text-[#c9ff3f] mb-4" size={48} />
                 <span className="text-xs uppercase tracking-widest text-slate-400">Historical Ledger Integrity</span>
               </div>
             </div>
@@ -235,48 +256,48 @@ export default function Home() {
   // Loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0B1D26] flex items-center justify-center text-white">
-        <Loader2 className="animate-spin text-[#FBD33D]" size={36} />
+      <div className="min-h-screen bg-[#050505] flex items-center justify-center text-white">
+        <Loader2 className="animate-spin text-[#c9ff3f]" size={36} />
       </div>
     );
   }
 
-  // Authenticated MNTN-inspired Tracker Workspace
+  // Authenticated Framer-inspired Tracker Workspace
   return (
-    <div className="min-h-screen bg-[#0B1D26] text-white selection:bg-[#FBD33D]/30 selection:text-[#FBD33D]">
+    <div className="min-h-screen bg-[#050505] text-white selection:bg-[#c9ff3f]/30 selection:text-[#c9ff3f]">
       <div className="mntn-shell">
         <header className="mntn-topbar">
           <div className="flex items-center gap-6">
             <a href="/" className="mntn-brand">
-              <span>MNTN / OPENHOUSE</span>
+              OPENHOUSE <span className="text-[#c9ff3f]">//</span> TRACKER
             </a>
-            <span className="hidden md:inline text-xs font-mono text-[#FBD33D] tracking-widest uppercase">
-              // Authenticated Tracker
+            <span className="hidden md:inline text-xs font-mono text-[#c9ff3f] tracking-widest uppercase">
+              // Live inventory workspace
             </span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="mntn-auth-actions flex items-center gap-4">
             <div className="text-xs font-mono text-slate-400 hidden sm:block">
               {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
             </div>
-            <Button variant="outline" onClick={() => setResetOpen(true)} className="mntn-button-outline border-red-500/40 text-red-300 hover:text-red-200 text-xs py-2 px-3">
+            <Button variant="outline" onClick={() => setResetOpen(true)} className="mntn-button-outline mntn-reset-action border-red-500/40 text-red-300 hover:text-red-200 text-xs py-2 px-3">
               Reset inventory
             </Button>
             <Button onClick={() => setTab("upload")} className="mntn-button text-xs py-2 px-4">
-              <UploadCloud size={14} /> Upload report
+              <UploadCloud size={14} /> <span className="hidden sm:inline">Upload report</span><span className="sm:hidden">Upload</span>
             </Button>
             
             {/* User Profile & Sign Out Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 bg-[#112631] border border-white/20 p-1.5 rounded-full hover:border-[#FBD33D] transition-colors focus:outline-none">
+                <button className="flex items-center gap-2 bg-[#0d0d0d] border border-white/20 p-1.5 rounded-full hover:border-[#c9ff3f] transition-colors focus:outline-none">
                   <Avatar className="h-8 w-8">
-                    <AvatarFallback className="bg-[#0B1D26] text-[#FBD33D] font-medium text-xs">
+                    <AvatarFallback className="bg-[#050505] text-[#c9ff3f] font-medium text-xs">
                       {user?.name?.charAt(0).toUpperCase() || "U"}
                     </AvatarFallback>
                   </Avatar>
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="bg-[#112631] border border-white/20 text-white w-48">
+              <DropdownMenuContent align="end" className="bg-[#0d0d0d] border border-white/20 text-white w-48">
                 <div className="px-3 py-2 border-b border-white/10">
                   <p className="text-sm font-medium truncate">{user?.name || "User"}</p>
                   <p className="text-xs text-slate-400 truncate">{user?.email || ""}</p>
@@ -324,7 +345,7 @@ export default function Home() {
               </div>
               <div className="mntn-metrics">
                 <div className="mntn-metric-card gold">
-                  <span className="eyebrow !text-[#FBD33D]">Active Inventory</span>
+                  <span className="eyebrow !text-[#c9ff3f]">Active Inventory</span>
                   <div className="mntn-metric-value">{dashboard.data?.active ?? 0}</div>
                   <p className="mntn-metric-detail">active units in latest snapshot</p>
                 </div>
@@ -354,22 +375,22 @@ export default function Home() {
                   <h2 className="font-serif text-3xl font-medium mt-1">Inventory movement over time</h2>
                 </div>
               </div>
-              <div className="bg-[#112631] border border-white/10 p-8 h-72 flex items-end">
+              <div className="bg-[#0d0d0d] border border-white/10 p-8 h-72 flex items-end">
                 {trend.length ? (
                   <div className="w-full flex items-end justify-between gap-4 h-52 px-4">
                     {trend.map((point, i) => (
                       <div key={`${point.date}-${i}`} className="flex-1 h-full flex flex-col justify-end items-center gap-2">
                         <span className="text-xs font-mono text-white">{point.count}</span>
                         <div className="w-full bg-slate-800 h-full flex items-end">
-                          <div className="w-full bg-[#FBD33D] transition-all" style={{ height: `${Math.max(15, (point.count / Math.max(...trend.map(t => t.count), 1)) * 100)}%` }} />
+                          <div className="w-full bg-[#c9ff3f] transition-all" style={{ height: `${Math.max(15, (point.count / Math.max(...trend.map(t => t.count), 1)) * 100)}%` }} />
                         </div>
                         <span className="text-[10px] font-mono text-slate-400 truncate max-w-[60px]">{point.date}</span>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-slate-400 gap-2 text-sm font-mono">
-                    <Sparkles size={16} /> Confirm your first snapshot to chart market movement.
+                  <div className="mntn-empty-state w-full h-full flex items-center justify-center text-slate-400 gap-2 text-sm font-mono">
+                    <Sparkles size={16} /> <span>First snapshot needed before movement can be charted.</span>
                   </div>
                 )}
               </div>
@@ -382,7 +403,7 @@ export default function Home() {
                 <span className="eyebrow">Active Book</span>
                 <h2 className="font-serif text-3xl font-medium mt-1">Full inventory ledger</h2>
               </div>
-              <div className="flex items-center gap-3 border border-white/20 px-3 py-2 bg-[#112631] w-full md:w-auto">
+              <div className="flex items-center gap-3 border border-white/20 px-3 py-2 bg-[#0d0d0d] w-full md:w-auto">
                 <Search size={16} className="text-slate-400" />
                 <input
                   type="text"
@@ -395,7 +416,7 @@ export default function Home() {
                   aria-label="Sort inventory"
                   value={sort}
                   onChange={e => setSort(e.target.value as any)}
-                  className="bg-[#0B1D26] text-white border border-white/20 text-xs py-1 px-2 outline-none"
+                  className="bg-[#050505] text-white border border-white/20 text-xs py-1 px-2 outline-none"
                 >
                   <option value="updated">Recent</option>
                   <option value="price">Price</option>
@@ -472,7 +493,7 @@ export default function Home() {
                     onChange={e => e.target.files && addFiles(e.target.files)}
                   />
                   <label htmlFor="file-upload" className="cursor-pointer">
-                    <div className="w-16 h-16 rounded-full border border-white/30 flex items-center justify-center mx-auto mb-4 text-[#FBD33D]">
+                    <div className="w-16 h-16 rounded-full border border-white/30 flex items-center justify-center mx-auto mb-4 text-[#c9ff3f]">
                       <UploadCloud size={28} />
                     </div>
                     <h3 className="font-serif text-2xl font-medium mb-2">Drop report screenshots</h3>
@@ -481,15 +502,15 @@ export default function Home() {
                   </label>
                 </div>
 
-                <div className="bg-[#112631] border border-white/10 p-6 flex flex-col justify-between">
+                <div className="bg-[#0d0d0d] border border-white/10 p-6 flex flex-col justify-between">
                   <div>
                     <h3 className="font-serif text-xl font-medium mb-4">Selected files ({files.length})</h3>
                     {files.length ? (
                       <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
                         {files.map((file, i) => (
-                          <div key={`${file.name}-${i}`} className="flex items-center justify-between p-3 bg-[#0B1D26] border border-white/10 text-xs">
+                          <div key={`${file.name}-${i}`} className="flex items-center justify-between p-3 bg-[#050505] border border-white/10 text-xs">
                             <div className="flex items-center gap-2 truncate">
-                              <FileImage size={15} className="text-[#FBD33D] shrink-0" />
+                              <FileImage size={15} className="text-[#c9ff3f] shrink-0" />
                               <span className="truncate">{file.name}</span>
                             </div>
                             <button onClick={() => setFiles(files.filter((_, j) => j !== i))} className="text-slate-400 hover:text-white">
@@ -526,7 +547,7 @@ export default function Home() {
 
         {/* Reset Dialog */}
         <Dialog open={resetOpen} onOpenChange={setResetOpen}>
-          <DialogContent className="bg-[#112631] border border-white/20 text-white">
+          <DialogContent className="bg-[#0d0d0d] border border-white/20 text-white">
             <DialogHeader>
               <DialogTitle className="font-serif text-2xl">Reset entire inventory?</DialogTitle>
               <DialogDescription className="text-slate-400">
@@ -538,7 +559,7 @@ export default function Home() {
               placeholder="Enter reset password"
               value={resetPassword}
               onChange={e => setResetPassword(e.target.value)}
-              className="bg-[#0B1D26] border-white/20 text-white"
+              className="bg-[#050505] border-white/20 text-white"
             />
             <DialogFooter>
               <Button variant="outline" onClick={() => setResetOpen(false)} className="border-white/20 text-white hover:bg-white/10">
@@ -597,7 +618,7 @@ function DataTable({ rows, kind }: { rows: any[]; kind: string }) {
 function HistoryRow({ snapshot }: { snapshot: any }) {
   const assets = trpc.snapshotAssets.useQuery({ snapshotId: snapshot.id });
   return (
-    <div className="bg-[#112631] border border-white/10 p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+    <div className="bg-[#0d0d0d] border border-white/10 p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
       <div>
         <span className="eyebrow">Snapshot</span>
         <h4 className="font-serif text-xl font-medium mt-1">{formatDate(snapshot.snapshotDate)}</h4>
@@ -612,7 +633,7 @@ function HistoryRow({ snapshot }: { snapshot: any }) {
       </div>
       <div className="flex flex-wrap gap-2">
         {assets.data?.map((a: any) => (
-          <a key={a.id} href={a.storageUrl} target="_blank" rel="noreferrer" className="text-xs text-[#FBD33D] hover:underline flex items-center gap-1 bg-[#0B1D26] px-3 py-1.5 border border-white/10">
+          <a key={a.id} href={a.storageUrl} target="_blank" rel="noreferrer" className="text-xs text-[#c9ff3f] hover:underline flex items-center gap-1 bg-[#050505] px-3 py-1.5 border border-white/10">
             <FileImage size={13} /> {a.fileName}
           </a>
         ))}
@@ -623,14 +644,14 @@ function HistoryRow({ snapshot }: { snapshot: any }) {
 
 function ReviewPanel({ review, counts, onConfirm, confirming, onReset }: { review: any; counts: any; onConfirm: () => void; confirming: boolean; onReset: () => void }) {
   return (
-    <div className="bg-[#112631] border border-white/10 p-8 space-y-8">
+    <div className="bg-[#0d0d0d] border border-white/10 p-8 space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
           <span className="eyebrow">OCR Extraction Ready</span>
           <h3 className="font-serif text-3xl font-medium mt-1">Review before committing</h3>
           <p className="text-sm text-slate-400 mt-1">{review.units.length} unique units extracted from {review.processedImageCount ?? review.assets.length} screenshots.</p>
         </div>
-        <div className="w-20 h-20 rounded-full border-2 border-[#FBD33D] flex flex-col items-center justify-center text-[#FBD33D]">
+        <div className="w-20 h-20 rounded-full border-2 border-[#c9ff3f] flex flex-col items-center justify-center text-[#c9ff3f]">
           <strong className="font-serif text-2xl">{review.completenessScore}%</strong>
           <span className="text-[9px] uppercase tracking-widest font-mono">Complete</span>
         </div>
@@ -647,22 +668,22 @@ function ReviewPanel({ review, counts, onConfirm, confirming, onReset }: { revie
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-y border-white/10 py-6">
-        <div className="bg-[#0B1D26] p-4 border border-white/10 flex items-center gap-4">
+        <div className="bg-[#050505] p-4 border border-white/10 flex items-center gap-4">
           <div className="text-emerald-400"><Plus size={20} /></div>
           <div>
             <div className="font-serif text-2xl">{counts.sourced}</div>
             <div className="text-xs text-slate-400 uppercase tracking-widest font-mono">Sourced units</div>
           </div>
         </div>
-        <div className="bg-[#0B1D26] p-4 border border-white/10 flex items-center gap-4">
+        <div className="bg-[#050505] p-4 border border-white/10 flex items-center gap-4">
           <div className="text-rose-400"><TrendingDown size={20} /></div>
           <div>
             <div className="font-serif text-2xl">{counts.sold}</div>
             <div className="text-xs text-slate-400 uppercase tracking-widest font-mono">Potentially sold</div>
           </div>
         </div>
-        <div className="bg-[#0B1D26] p-4 border border-white/10 flex items-center gap-4">
-          <div className="text-[#FBD33D]"><TrendingUp size={20} /></div>
+        <div className="bg-[#050505] p-4 border border-white/10 flex items-center gap-4">
+          <div className="text-[#c9ff3f]"><TrendingUp size={20} /></div>
           <div>
             <div className="font-serif text-2xl">{counts.updated}</div>
             <div className="text-xs text-slate-400 uppercase tracking-widest font-mono">Price / Unit updates</div>
