@@ -469,7 +469,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     }
 
     const anthropicPayload: Record<string, unknown> = {
-      model: model || "claude-3-5-sonnet-20241022",
+      model: model && model.includes("claude") ? model : "claude-3-5-sonnet-20241022",
       max_tokens: resolvedMaxTokens || 4096,
       system: systemText,
       messages: anthropicMessages,
@@ -484,6 +484,9 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
         input_schema: jsonSchema,
       }];
       anthropicPayload.tool_choice = { type: "tool", name: schemaName };
+      // Also reinforce in system prompt that output must match the tool or JSON
+      systemText += "\nCRITICAL: You must invoke the tool '" + schemaName + "' to return the extracted units in exact JSON schema format.";
+      anthropicPayload.system = systemText;
     }
 
     const anthResp = await fetchWithBackoff("https://api.anthropic.com/v1/messages", {
@@ -498,6 +501,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
 
     if (!anthResp.ok) {
       const errorText = await anthResp.text();
+      console.error("[Claude API] Error response:", anthResp.status, errorText);
       throw new Error(`Claude API invoke failed: ${anthResp.status} ${anthResp.statusText} – ${errorText}`);
     }
 
@@ -512,6 +516,13 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
           textOutput = JSON.stringify(block.input);
         }
       }
+    }
+    if (!textOutput && anthData.content) {
+      textOutput = JSON.stringify(anthData.content);
+    }
+    // If textOutput is not starting with { or [, wrap in {"units": []} or parse robustly
+    if (textOutput && !textOutput.trim().startsWith("{") && !textOutput.trim().startsWith("[")) {
+      textOutput = JSON.stringify({ units: [], rawText: textOutput });
     }
 
     return {
