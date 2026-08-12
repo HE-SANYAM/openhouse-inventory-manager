@@ -24,4 +24,11 @@ describe("Biogax theme contract", () => {
   it("uses the project-scoped Biogax hero asset rather than a remote runtime URL", () => {
     expect(cssSource).toContain("/manus-storage/biogax-green-energy-hero_350becc2.png");
   });
+
+  it("keeps metric cards readable and aligned beneath the hero text overrides", () => {
+    expect(cssSource).toContain(".biogax-workspace .mntn-hero .mntn-metric-card [class*=\"text-white\"]");
+    expect(cssSource).toContain(".biogax-workspace .mntn-metric-card .mntn-metric-value");
+    expect(cssSource).toContain("@media (max-width: 1180px)");
+    expect(cssSource).toContain("grid-template-columns: 1fr;");
+  });
 });

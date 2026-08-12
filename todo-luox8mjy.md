@@ -37,3 +37,10 @@
 
 - [x] Add a focused Biogax theme contract regression test covering landing/workspace markers and preserved tracker hooks.
 - [x] Save a new checkpoint after the Biogax theme changes and attach its project version.
+
+- [ ] Audit all desktop and mobile surfaces for low-contrast, clipped, overlapped, or misaligned content.
+- [ ] Fix the four hero metric cards so labels, values, and descriptions are consistently visible and aligned.
+- [ ] Fix global visibility issues across navigation, tabs, metrics, tables, filters, zone cards, upload/OCR, dialogs, history, and empty states.
+- [ ] Harden responsive layouts so hero content and controls remain inside the viewport.
+- [ ] Add or update regression coverage for the visibility contract and preserved tracker actions.
+- [ ] Verify desktop/mobile screenshots and save a new visibility-fix checkpoint.
