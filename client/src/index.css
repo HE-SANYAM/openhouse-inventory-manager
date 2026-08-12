@@ -808,3 +808,57 @@ select:focus-visible {
     animation-iteration-count: 1 !important;
   }
 }
+
+
+/* Extensible NCR taxonomy controls */
+.mntn-filter-select {
+  min-width: 150px;
+  max-width: 220px;
+  border: 1px solid rgba(246, 246, 242, 0.2);
+  background: #0d0d0d;
+  color: #f6f6f2;
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  outline: none;
+}
+
+.mntn-filter-select:hover,
+.mntn-filter-select:focus {
+  border-color: #c9ff3f;
+}
+
+.mntn-filter-select option {
+  background: #0d0d0d;
+  color: #f6f6f2;
+}
+
+.mntn-zone-breakdown {
+  padding: 22px 0 4px;
+}
+
+.mntn-zone-card {
+  min-height: 146px;
+  padding: 17px 18px;
+  border: 1px solid rgba(246, 246, 242, 0.16);
+  background: linear-gradient(135deg, rgba(201, 255, 63, 0.06), transparent 65%), #0d0d0d;
+  color: #f6f6f2;
+  transition: border-color 180ms ease, background 180ms ease, transform 180ms ease;
+}
+
+.mntn-zone-card:hover,
+.mntn-zone-card.is-selected {
+  border-color: #c9ff3f;
+  background: linear-gradient(135deg, rgba(201, 255, 63, 0.14), transparent 70%), #111;
+  transform: translateY(-2px);
+}
+
+@media (max-width: 980px) {
+  .mntn-filter-select {
+    min-width: 0;
+    max-width: none;
+    width: 100%;
+  }
+}

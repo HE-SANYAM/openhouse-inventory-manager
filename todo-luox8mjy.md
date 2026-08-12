@@ -20,3 +20,11 @@
 - [x] Verify responsive behavior at desktop and mobile breakpoints.
 - [x] Add or update Vitest coverage for preserved non-visual interactions.
 - [x] Save a checkpoint for the Framer-themed redesign.
+
+- [x] Inspect the supplied Framer remix reference and map its visual system to the existing tracker.
+- [x] Add a flexible, extensible NCR zone and sub-zone taxonomy with inventory filtering.
+- [x] Add Excel downloads for overview, inventory, sourced, sold, history, and filtered zone views.
+- [x] Extend OCR upload intake to accept PDF and image files with clear validation and review states.
+- [x] Preserve existing inventory, OCR, reset, history, profile, and sign-out behavior while applying the new design.
+- [x] Add regression coverage for zones, export shaping, supported uploads, and preserved auth behavior.
+- [x] Verify desktop/mobile flows and save a new checkpoint.

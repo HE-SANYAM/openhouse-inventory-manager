@@ -8,12 +8,14 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc } from "@/lib/trpc";
-import { ArrowUpRight, BarChart3, Check, ChevronRight, CircleAlert, FileImage, Filter, History, Home as HomeIcon, Loader2, LogOut, Menu as MenuIcon, Minus, Plus, Search, Sparkles, TrendingDown, TrendingUp, UploadCloud, X } from "lucide-react";
+import { ArrowUpRight, BarChart3, Check, ChevronRight, CircleAlert, Download, FileImage, FileSpreadsheet, FileText, Filter, History, Home as HomeIcon, Loader2, LogOut, Menu as MenuIcon, Minus, Plus, Search, Sparkles, TrendingDown, TrendingUp, UploadCloud, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { startLogin } from "@/const";
+import { downloadInventorySection, downloadWorkbook } from "@/lib/inventoryExport";
+import { isSupportedUploadMime, uploadAcceptAttribute, type SupportedUploadMime } from "@/lib/ocrUpload";
 
-type FilePayload = { name: string; mimeType: string; dataUrl: string };
+type FilePayload = { name: string; mimeType: SupportedUploadMime; dataUrl: string };
 const formatPrice = (value: unknown, display?: string | null) => display || (value ? `₹${Number(value).toLocaleString("en-IN")}` : "—");
 const formatDate = (date: unknown) => date ? new Date(date as string).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
 
@@ -21,6 +23,9 @@ export default function Home() {
   const { user, loading, logout } = useAuth();
   const [tab, setTab] = useState("dashboard");
   const [search, setSearch] = useState("");
+  const [marketRegion, setMarketRegion] = useState("all");
+  const [zone, setZone] = useState("all");
+  const [microZone, setMicroZone] = useState("all");
   const [sort, setSort] = useState<"updated" | "price" | "area">("updated");
   const [files, setFiles] = useState<FilePayload[]>([]);
   const [review, setReview] = useState<any | null>(null);
@@ -30,13 +35,14 @@ export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const dashboard = trpc.dashboard.useQuery(undefined, { enabled: !!user });
-  const inventory = trpc.inventory.useQuery({ search, sort }, { enabled: !!user });
+  const inventory = trpc.inventory.useQuery({ search, marketRegion, zone, microZone, sort }, { enabled: !!user });
+  const inventoryFacets = trpc.inventoryFacets.useQuery(undefined, { enabled: !!user });
   const sourced = trpc.sourced.useQuery(undefined, { enabled: !!user && tab === "sourced" });
   const sold = trpc.sold.useQuery(undefined, { enabled: !!user && tab === "sold" });
   const history = trpc.history.useQuery(undefined, { enabled: !!user && tab === "history" });
 
   const extract = trpc.extract.useMutation({
-    onSuccess: data => { setReview(data); toast.success("Report screenshots analyzed successfully"); },
+    onSuccess: data => { setReview(data); toast.success("Report files analyzed successfully"); },
     onError: e => toast.error(e.message)
   });
 
@@ -66,24 +72,47 @@ export default function Home() {
 
   const activeUnits = inventory.data ?? [];
   const trend = dashboard.data?.trend ?? [];
+  const zoneSummary = useMemo(() => {
+    const groups = new Map<string, { region: string; zone: string; count: number }>();
+    activeUnits.forEach((unit: any) => {
+      const region = unit.marketRegion || "Unassigned region";
+      const zoneName = unit.zone || "Unassigned zone";
+      const key = `${region}::${zoneName}`;
+      const current = groups.get(key) || { region, zone: zoneName, count: 0 };
+      current.count += 1;
+      groups.set(key, current);
+    });
+    return Array.from(groups.values()).sort((a, b) => b.count - a.count);
+  }, [activeUnits]);
+
+  const downloadOverview = () => downloadWorkbook("openhouse-overview.xlsx", [
+    { name: "Overview", rows: [{ Metric: "Active inventory", Value: dashboard.data?.active ?? 0 }, { Metric: "New / sourced", Value: dashboard.data?.sourced ?? 0 }, { Metric: "Sold / removed", Value: dashboard.data?.sold ?? 0 }, { Metric: "Price changes", Value: dashboard.data?.priceChanges ?? 0 }, { Metric: "Net inventory shift", Value: dashboard.data?.net ?? 0 }] },
+    { name: "Snapshot trend", rows: trend.map(point => ({ Date: point.date, "Active units": point.count })) },
+  ]);
+
+  const downloadHistory = () => downloadWorkbook("openhouse-ledger-history.xlsx", [
+    { name: "Ledger history", rows: (history.data ?? []).map((snapshot: any) => ({ Date: formatDate(snapshot.snapshotDate), Units: snapshot.unitCount, "Source files": snapshot.sourceFileCount, Completeness: `${snapshot.completenessScore}%`, Warning: snapshot.warningMessage || "" })) },
+  ]);
+
+  const downloadReview = () => review && downloadInventorySection("openhouse-review.xlsx", "OCR review", review.units ?? []);
 
   const addFiles = async (list: FileList | File[]) => {
     const next: FilePayload[] = [];
     for (const file of Array.from(list)) {
-      if (!file.type.startsWith("image/")) continue;
+      if (!isSupportedUploadMime(file.type)) { toast.error(`${file.name}: use a PDF, PNG, JPG, WEBP, or GIF file`); continue; }
       const dataUrl = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(String(reader.result));
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
-      next.push({ name: file.name, mimeType: file.type, dataUrl });
+      next.push({ name: file.name, mimeType: file.type as SupportedUploadMime, dataUrl });
     }
     setFiles(prev => [...prev, ...next]);
   };
 
   const handleExtract = () => {
-    if (!files.length) return toast.error("Select at least one report screenshot");
+    if (!files.length) return toast.error("Select at least one PDF or report image");
     extract.mutate({ files });
   };
 
@@ -369,11 +398,12 @@ export default function Home() {
 
             {/* Trend section */}
             <div className="border-t border-white/10 pt-10">
-              <div className="flex justify-between items-end mb-6">
+              <div className="flex flex-col md:flex-row justify-between md:items-end gap-4 mb-6">
                 <div>
                   <span className="eyebrow">Snapshot History</span>
                   <h2 className="font-serif text-3xl font-medium mt-1">Inventory movement over time</h2>
                 </div>
+                <Button variant="outline" onClick={downloadOverview} className="mntn-button-outline text-xs"><FileSpreadsheet size={14} /> Download overview</Button>
               </div>
               <div className="bg-[#0d0d0d] border border-white/10 p-8 h-72 flex items-end">
                 {trend.length ? (
@@ -398,57 +428,80 @@ export default function Home() {
           </TabsContent>
 
           <TabsContent value="inventory" className="space-y-6">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 py-6 border-b border-white/10">
-              <div>
-                <span className="eyebrow">Active Book</span>
-                <h2 className="font-serif text-3xl font-medium mt-1">Full inventory ledger</h2>
+            <div className="flex flex-col gap-5 py-6 border-b border-white/10">
+              <div className="flex flex-col xl:flex-row justify-between xl:items-end gap-4">
+                <div>
+                  <span className="eyebrow">Active Book / NCR zones</span>
+                  <h2 className="font-serif text-3xl font-medium mt-1">Full inventory ledger</h2>
+                  <p className="text-sm text-slate-400 mt-2 max-w-2xl">Filter the whole book by broad market, corridor, or micro-zone. New geography labels can be introduced by OCR without changing the taxonomy.</p>
+                </div>
+                <Button variant="outline" onClick={() => downloadInventorySection("openhouse-inventory.xlsx", "Inventory", activeUnits)} className="mntn-button-outline text-xs"><FileSpreadsheet size={14} /> Download filtered inventory</Button>
               </div>
-              <div className="flex items-center gap-3 border border-white/20 px-3 py-2 bg-[#0d0d0d] w-full md:w-auto">
-                <Search size={16} className="text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search society, unit..."
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  className="bg-transparent border-0 outline-none text-sm text-white placeholder:text-slate-500 w-full md:w-64"
-                />
-                <select
-                  aria-label="Sort inventory"
-                  value={sort}
-                  onChange={e => setSort(e.target.value as any)}
-                  className="bg-[#050505] text-white border border-white/20 text-xs py-1 px-2 outline-none"
-                >
+              <div className="flex flex-col lg:flex-row gap-3">
+                <div className="flex items-center gap-3 border border-white/20 px-3 py-2 bg-[#0d0d0d] flex-1 min-w-0">
+                  <Search size={16} className="text-slate-400 shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="Search society, unit, zone..."
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    className="bg-transparent border-0 outline-none text-sm text-white placeholder:text-slate-500 w-full"
+                  />
+                </div>
+                <select aria-label="Filter by market region" value={marketRegion} onChange={e => { setMarketRegion(e.target.value); setZone("all"); setMicroZone("all"); }} className="mntn-filter-select">
+                  <option value="all">All NCR markets</option>
+                  {(inventoryFacets.data?.marketRegions ?? []).map(region => <option key={region} value={region}>{region}</option>)}
+                </select>
+                <select aria-label="Filter by zone" value={zone} onChange={e => { setZone(e.target.value); setMicroZone("all"); }} className="mntn-filter-select">
+                  <option value="all">All corridors / zones</option>
+                  {(inventoryFacets.data?.zones ?? []).map(zoneName => <option key={zoneName} value={zoneName}>{zoneName}</option>)}
+                </select>
+                <select aria-label="Filter by micro-zone" value={microZone} onChange={e => setMicroZone(e.target.value)} className="mntn-filter-select">
+                  <option value="all">All micro-zones</option>
+                  {(inventoryFacets.data?.microZones ?? []).map(micro => <option key={micro} value={micro}>{micro}</option>)}
+                </select>
+                <select aria-label="Sort inventory" value={sort} onChange={e => setSort(e.target.value as any)} className="mntn-filter-select">
                   <option value="updated">Recent</option>
                   <option value="price">Price</option>
                   <option value="area">Area</option>
                 </select>
-                <Filter size={15} className="text-slate-400" />
+                <Filter size={15} className="text-slate-400 self-center hidden lg:block" />
               </div>
             </div>
 
+            <ZoneBreakdown groups={zoneSummary} selectedRegion={marketRegion} selectedZone={zone} onSelect={(nextRegion, nextZone) => { setMarketRegion(nextRegion); setZone(nextZone); setMicroZone("all"); }} />
             <DataTable rows={activeUnits} kind="inventory" />
           </TabsContent>
 
           <TabsContent value="sourced" className="space-y-6">
-            <div className="py-6 border-b border-white/10">
-              <span className="eyebrow">First Appearance</span>
-              <h2 className="font-serif text-3xl font-medium mt-1">Newly sourced units</h2>
+            <div className="flex flex-col md:flex-row justify-between md:items-end gap-4 py-6 border-b border-white/10">
+              <div>
+                <span className="eyebrow">First Appearance</span>
+                <h2 className="font-serif text-3xl font-medium mt-1">Newly sourced units</h2>
+              </div>
+              <Button variant="outline" onClick={() => downloadInventorySection("openhouse-sourced.xlsx", "Sourced", sourced.data?.map((r: any) => r.unit) ?? [])} className="mntn-button-outline text-xs"><FileSpreadsheet size={14} /> Download sourced</Button>
             </div>
             <DataTable rows={sourced.data?.map((r: any) => r.unit) ?? []} kind="sourced" />
           </TabsContent>
 
           <TabsContent value="sold" className="space-y-6">
-            <div className="py-6 border-b border-white/10">
-              <span className="eyebrow">Removed from Book</span>
-              <h2 className="font-serif text-3xl font-medium mt-1">Sold or withdrawn units</h2>
+            <div className="flex flex-col md:flex-row justify-between md:items-end gap-4 py-6 border-b border-white/10">
+              <div>
+                <span className="eyebrow">Removed from Book</span>
+                <h2 className="font-serif text-3xl font-medium mt-1">Sold or withdrawn units</h2>
+              </div>
+              <Button variant="outline" onClick={() => downloadInventorySection("openhouse-sold.xlsx", "Sold", sold.data?.map((r: any) => r.unit) ?? [])} className="mntn-button-outline text-xs"><FileSpreadsheet size={14} /> Download sold</Button>
             </div>
             <DataTable rows={sold.data?.map((r: any) => r.unit) ?? []} kind="sold" />
           </TabsContent>
 
           <TabsContent value="history" className="space-y-6">
-            <div className="py-6 border-b border-white/10">
-              <span className="eyebrow">The Ledger</span>
-              <h2 className="font-serif text-3xl font-medium mt-1">Confirmed daily snapshots</h2>
+            <div className="flex flex-col md:flex-row justify-between md:items-end gap-4 py-6 border-b border-white/10">
+              <div>
+                <span className="eyebrow">The Ledger</span>
+                <h2 className="font-serif text-3xl font-medium mt-1">Confirmed daily snapshots</h2>
+              </div>
+              <Button variant="outline" onClick={downloadHistory} className="mntn-button-outline text-xs"><FileSpreadsheet size={14} /> Download history</Button>
             </div>
             <div className="space-y-4">
               {history.data?.length ? (
@@ -463,9 +516,13 @@ export default function Home() {
           </TabsContent>
 
           <TabsContent value="upload" className="space-y-6">
-            <div className="py-6 border-b border-white/10">
-              <span className="eyebrow">New Snapshot</span>
-              <h2 className="font-serif text-3xl font-medium mt-1">Upload daily report screenshots</h2>
+            <div className="flex flex-col md:flex-row justify-between md:items-end gap-4 py-6 border-b border-white/10">
+              <div>
+                <span className="eyebrow">New Snapshot / OCR intake</span>
+                <h2 className="font-serif text-3xl font-medium mt-1">Upload report PDFs or images</h2>
+                <p className="text-sm text-slate-400 mt-2 max-w-xl">Drop a PDF bulletin or a batch of screenshots. OCR extracts units, prices, and any visible NCR geography labels for review before committing.</p>
+              </div>
+              {review && <Button variant="outline" onClick={downloadReview} className="mntn-button-outline text-xs"><FileSpreadsheet size={14} /> Download review</Button>}
             </div>
 
             {review ? (
@@ -487,7 +544,7 @@ export default function Home() {
                   <input
                     id="file-upload"
                     type="file"
-                    accept="image/*"
+                    accept={uploadAcceptAttribute}
                     multiple
                     className="hidden"
                     onChange={e => e.target.files && addFiles(e.target.files)}
@@ -496,9 +553,9 @@ export default function Home() {
                     <div className="w-16 h-16 rounded-full border border-white/30 flex items-center justify-center mx-auto mb-4 text-[#c9ff3f]">
                       <UploadCloud size={28} />
                     </div>
-                    <h3 className="font-serif text-2xl font-medium mb-2">Drop report screenshots</h3>
-                    <p className="text-sm text-slate-400 mb-4">or click to browse your local image files</p>
-                    <span className="eyebrow">PNG / JPG / WEBP · MULTIPLE FILES ACCEPTED</span>
+                    <h3 className="font-serif text-2xl font-medium mb-2">Drop reports here</h3>
+                    <p className="text-sm text-slate-400 mb-4">or click to browse PDFs and local report images</p>
+                    <span className="eyebrow">PDF / PNG / JPG / WEBP / GIF · MULTIPLE FILES ACCEPTED</span>
                   </label>
                 </div>
 
@@ -510,7 +567,7 @@ export default function Home() {
                         {files.map((file, i) => (
                           <div key={`${file.name}-${i}`} className="flex items-center justify-between p-3 bg-[#050505] border border-white/10 text-xs">
                             <div className="flex items-center gap-2 truncate">
-                              <FileImage size={15} className="text-[#c9ff3f] shrink-0" />
+                              {file.mimeType === "application/pdf" ? <FileText size={15} className="text-[#c9ff3f] shrink-0" /> : <FileImage size={15} className="text-[#c9ff3f] shrink-0" />}
                               <span className="truncate">{file.name}</span>
                             </div>
                             <button onClick={() => setFiles(files.filter((_, j) => j !== i))} className="text-slate-400 hover:text-white">
@@ -520,7 +577,7 @@ export default function Home() {
                         ))}
                       </div>
                     ) : (
-                      <p className="text-sm text-slate-400">No screenshots chosen yet. Select files to begin OCR extraction.</p>
+                      <p className="text-sm text-slate-400">No files chosen yet. Select a PDF or image bulletin to begin OCR extraction.</p>
                     )}
                   </div>
 
@@ -531,7 +588,7 @@ export default function Home() {
                   >
                     {extract.isPending ? (
                       <>
-                        <Loader2 className="animate-spin" size={16} /> Analyzing report images...
+                        <Loader2 className="animate-spin" size={16} /> Analyzing report files...
                       </>
                     ) : (
                       <>
@@ -577,6 +634,37 @@ export default function Home() {
         </Dialog>
       </div>
     </div>
+  );
+}
+
+function ZoneBreakdown({ groups, selectedRegion, selectedZone, onSelect }: { groups: Array<{ region: string; zone: string; count: number }>; selectedRegion: string; selectedZone: string; onSelect: (region: string, zone: string) => void }) {
+  return (
+    <section className="mntn-zone-breakdown" aria-label="Inventory by NCR zone">
+      <div className="flex flex-col sm:flex-row justify-between sm:items-end gap-3 mb-4">
+        <div>
+          <span className="eyebrow">Market split</span>
+          <h3 className="font-serif text-2xl font-medium mt-1">Inventory by NCR zone</h3>
+        </div>
+        <span className="text-xs font-mono text-slate-500">{groups.reduce((sum, group) => sum + group.count, 0)} visible units</span>
+      </div>
+      {groups.length ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+          {groups.map(group => {
+            const isSelected = selectedRegion === group.region && selectedZone === group.zone;
+            return (
+              <button key={`${group.region}-${group.zone}`} onClick={() => onSelect(isSelected ? "all" : group.region, isSelected ? "all" : group.zone)} className={`mntn-zone-card text-left ${isSelected ? "is-selected" : ""}`}>
+                <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-[#c9ff3f]">{group.region}</span>
+                <span className="mt-2 block text-sm text-white">{group.zone}</span>
+                <span className="mt-3 block text-2xl font-semibold tracking-[-0.06em]">{group.count}</span>
+                <span className="text-[10px] font-mono uppercase tracking-widest text-slate-500">units</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="mntn-empty-state py-8 text-sm font-mono text-slate-400">Zone labels will appear after the first confirmed snapshot.</div>
+      )}
+    </section>
   );
 }
 
