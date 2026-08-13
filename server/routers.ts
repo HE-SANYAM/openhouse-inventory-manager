@@ -60,7 +60,19 @@ export const appRouter = router({
   snapshotAssets: protectedProcedure.input(z.object({ snapshotId: z.number() })).query(async ({ input }) => { const db = await getDb(); if (!db) return []; return db.select().from(snapshotAssets).where(eq(snapshotAssets.snapshotId, input.snapshotId)); }),
   extract: protectedProcedure.input(z.object({ files: z.array(z.object({ name: z.string(), mimeType: z.enum(["application/pdf", "image/png", "image/jpeg", "image/webp", "image/gif"]), dataUrl: z.string() })).min(1) })).mutation(async ({ input }) => {
     const assets = await Promise.all(input.files.map(async f => { const base64 = f.dataUrl.split(",")[1] || ""; const { key, url } = await storagePut(`inventory-uploads/${Date.now()}-${f.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`, Buffer.from(base64, "base64"), f.mimeType); return { ...f, key, url }; }));
-    const extractedByImage: any[][] = []; const coverage: Array<{ fileName: string; rowCount: number; status: "processed" | "failed"; error?: string }> = []; for (const asset of assets) { try { const rows = await extractUnitsFromAsset(asset.dataUrl, asset.mimeType); extractedByImage.push(rows); coverage.push({ fileName: asset.name, rowCount: rows.length, status: "processed" }); } catch (error) { extractedByImage.push([]); coverage.push({ fileName: asset.name, rowCount: 0, status: "failed", error: error instanceof Error ? error.message : "OCR failed" }); } } const deduped = mergeExtractedUnits(extractedByImage); const score = completenessScore(deduped); const previous = await getLatestSnapshot(); const old = previous ? await getUnitsForSnapshot(previous.id) : []; const changes = compareUnits(deduped, old); const failedFiles = coverage.filter(c => c.status === "failed"); const warnings = [incompleteUploadWarning(old.length, deduped.length, score), failedFiles.length ? `${failedFiles.length} uploaded file${failedFiles.length === 1 ? " was" : "s were"} not readable by OCR. Review those files and retry.` : null].filter(Boolean); const warning = warnings.length ? warnings.join(" ") : null;
+    // Run per-file OCR concurrently, not sequentially -- 10 files at ~20-30s
+    // each in a serial loop pushed total request time past 4 minutes, which
+    // networks/proxies between the browser and this server were killing
+    // before the (eventually successful) response ever arrived.
+    const extractionResults = await Promise.all(assets.map(async asset => {
+      try {
+        const rows = await extractUnitsFromAsset(asset.dataUrl, asset.mimeType);
+        return { rows, coverage: { fileName: asset.name, rowCount: rows.length, status: "processed" as const } };
+      } catch (error) {
+        return { rows: [] as any[], coverage: { fileName: asset.name, rowCount: 0, status: "failed" as const, error: error instanceof Error ? error.message : "OCR failed" } };
+      }
+    }));
+    const extractedByImage = extractionResults.map(r => r.rows); const coverage = extractionResults.map(r => r.coverage); const deduped = mergeExtractedUnits(extractedByImage); const score = completenessScore(deduped); const previous = await getLatestSnapshot(); const old = previous ? await getUnitsForSnapshot(previous.id) : []; const changes = compareUnits(deduped, old); const failedFiles = coverage.filter(c => c.status === "failed"); const warnings = [incompleteUploadWarning(old.length, deduped.length, score), failedFiles.length ? `${failedFiles.length} uploaded file${failedFiles.length === 1 ? " was" : "s were"} not readable by OCR. Review those files and retry.` : null].filter(Boolean); const warning = warnings.length ? warnings.join(" ") : null;
     return { assets: assets.map(a => ({ name: a.name, mimeType: a.mimeType, key: a.key, url: a.url })), units: deduped, processedImageCount: assets.length, extractedRowCount: extractedByImage.reduce((n, rows) => n + rows.length, 0), coverage, changes, completenessScore: score, warning, previousSnapshotDate: previous?.snapshotDate ?? null };
   }),
   adminVerify: publicProcedure.input(z.object({ password: z.string().min(1) })).mutation(async ({ input }) => {
