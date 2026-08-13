@@ -86,18 +86,34 @@ export default function Home() {
 
   const downloadReview = () => review && downloadInventorySection("openhouse-review.xlsx", "OCR review", review.units ?? []);
 
+  const readAsDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
   const addFiles = async (list: FileList | File[]) => {
     const next: FilePayload[] = [];
     for (const file of Array.from(list)) {
       if (!isSupportedUploadMime(file.type)) { toast.error(`${file.name}: use a PDF, PNG, JPG, WEBP, or GIF file`); continue; }
       try {
-        // Upload straight from the browser to Blob storage -- large
-        // screenshots/PDFs never pass through our own server, so there's no
-        // request-body size limit to hit (Vercel functions cap those at 4.5MB).
+        // Upload straight from the browser to Blob storage when available --
+        // large screenshots/PDFs never pass through our own server then, so
+        // there's no request-body size limit to hit (Vercel functions cap
+        // those at 4.5MB). Not every deployment has Blob configured (e.g.
+        // Railway has no Vercel OIDC/token available), so fall back to
+        // sending the file inline as a data URL, which those deployments
+        // handle fine since they don't have that body-size constraint.
         const blob = await upload(file.name, file, { access: "public", handleUploadUrl: "/api/blob-upload" });
         next.push({ name: file.name, mimeType: file.type as SupportedUploadMime, url: blob.url });
       } catch {
-        toast.error(`${file.name}: upload failed`);
+        try {
+          const dataUrl = await readAsDataUrl(file);
+          next.push({ name: file.name, mimeType: file.type as SupportedUploadMime, url: dataUrl });
+        } catch {
+          toast.error(`${file.name}: upload failed`);
+        }
       }
     }
     setFiles(prev => [...prev, ...next]);
