@@ -5,11 +5,11 @@ import { httpBatchLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
-import { startLogin } from "./const";
 import "./index.css";
 
 const queryClient = new QueryClient();
 
+let redirectedForSession = false;
 const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (!(error instanceof TRPCClientError)) return;
   if (typeof window === "undefined") return;
@@ -17,8 +17,13 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
   const isUnauthorized = error.message === UNAUTHED_ERR_MSG;
 
   if (!isUnauthorized) return;
+  if (redirectedForSession) return;
+  redirectedForSession = true;
 
-  startLogin();
+  // Session expired mid-use. This deployment uses the in-app password login
+  // (not Manus OAuth), so just reload to the landing page, which shows the
+  // sign-in dialog again.
+  window.location.href = "/";
 };
 
 queryClient.getQueryCache().subscribe(event => {

@@ -32,6 +32,13 @@ export default function Home() {
   const [dragging, setDragging] = useState(false);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [loginPassword, setLoginPassword] = useState("");
+  const utils = trpc.useUtils();
+  const passwordLogin = trpc.auth.passwordLogin.useMutation({
+    onSuccess: () => { setLoginOpen(false); setLoginPassword(""); utils.auth.me.invalidate(); toast.success("Signed in"); },
+    onError: e => toast.error(e.message),
+  });
 
   const dashboard = trpc.dashboard.useQuery(undefined, { enabled: !!user });
   const inventory = trpc.inventory.useQuery({ search, marketRegion, zone, microZone, sort }, { enabled: !!user });
@@ -142,7 +149,7 @@ export default function Home() {
               <a href="#methodology">NCR zones</a>
             </nav>
             <div className="mntn-topbar-actions">
-              <Button onClick={() => startLogin()} className="mntn-button">
+              <Button onClick={() => setLoginOpen(true)} className="mntn-button">
                 Get started
               </Button>
               <button
@@ -161,7 +168,7 @@ export default function Home() {
               <a href="#features" onClick={() => setMobileMenuOpen(false)}>Home</a>
               <a href="#methodology" onClick={() => setMobileMenuOpen(false)}>Workflow</a>
               <a href="#about" onClick={() => setMobileMenuOpen(false)}>About</a>
-              <button type="button" className="text-left text-[#c9ff3f]" onClick={() => startLogin()}>Sign in to tracker</button>
+              <button type="button" className="text-left text-[#c9ff3f]" onClick={() => setLoginOpen(true)}>Sign in to tracker</button>
             </nav>
           )}
 
@@ -173,7 +180,7 @@ export default function Home() {
                 A calm workspace for the people who need to know what changed. Turn daily bulletins into a clear, searchable inventory across every NCR corridor.
               </p>
               <div className="flex flex-wrap gap-3 items-center">
-                <Button onClick={() => startLogin()} className="mntn-button">
+                <Button onClick={() => setLoginOpen(true)} className="mntn-button">
                   Start tracking <ChevronRight size={16} />
                 </Button>
                 <a href="#features" className="mntn-button-outline">
@@ -200,7 +207,7 @@ export default function Home() {
               <p>
                 Openhouse turns a stack of report screenshots into a readable daily record. New units, quiet removals, price changes, and NCR geographies are surfaced before anything is committed to the permanent ledger.
               </p>
-              <Button onClick={() => startLogin()} className="mntn-button-outline">
+              <Button onClick={() => setLoginOpen(true)} className="mntn-button-outline">
                 Enter the workspace <ChevronRight size={15} />
               </Button>
             </div>
@@ -221,7 +228,7 @@ export default function Home() {
               <p>
                 Upload a PDF or a full image set. The review layer groups extracted units, flags missing fields, and keeps the human decision in the loop before the ledger moves.
               </p>
-              <Button onClick={() => startLogin()} className="mntn-button-outline">
+              <Button onClick={() => setLoginOpen(true)} className="mntn-button-outline">
                 See the review flow <ChevronRight size={15} />
               </Button>
             </div>
@@ -242,7 +249,7 @@ export default function Home() {
               <p>
                 Confirmed snapshots become a calm, searchable history of the market. Filter Gurgaon, Noida, Ghaziabad, and new corridors as your business grows, then export the exact view you need.
               </p>
-              <Button onClick={() => startLogin()} className="mntn-button">
+              <Button onClick={() => setLoginOpen(true)} className="mntn-button">
                 Open the ledger <ChevronRight size={15} />
               </Button>
             </div>
@@ -267,6 +274,32 @@ export default function Home() {
             <p className="text-xs">Copyright 2026 Openhouse. Inventory intelligence for modern teams.</p>
           </footer>
         </div>
+
+        <Dialog open={loginOpen} onOpenChange={setLoginOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Sign in to Openhouse</DialogTitle>
+              <DialogDescription>Enter the access password to open the tracker.</DialogDescription>
+            </DialogHeader>
+            <form
+              onSubmit={e => { e.preventDefault(); if (loginPassword) passwordLogin.mutate({ password: loginPassword }); }}
+              className="flex flex-col gap-4"
+            >
+              <Input
+                type="password"
+                autoFocus
+                placeholder="Access password"
+                value={loginPassword}
+                onChange={e => setLoginPassword(e.target.value)}
+              />
+              <DialogFooter>
+                <Button type="submit" className="mntn-button" disabled={passwordLogin.isPending || !loginPassword}>
+                  {passwordLogin.isPending ? <Loader2 className="animate-spin" size={16} /> : "Sign in"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }

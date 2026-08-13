@@ -8,7 +8,9 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { changeEvents, getDb, getLatestActiveUnits, getLatestSnapshot, getUnitsForSnapshot, inventorySnapshots, inventoryUnits, snapshotAssets, resetInventoryData, getConfig, setConfig, addManualUnit, updateManualUnit, deleteInventoryUnit } from "./db";
-import { validateInventoryResetPassword } from "./resetSecurity";
+import { validateInventoryResetPassword, validateAppLoginPassword } from "./resetSecurity";
+import { sdk } from "./_core/sdk";
+import { ENV } from "./_core/env";
 import { compareUnits, completenessScore, incompleteUploadWarning, mergeExtractedUnits, unitKey } from "@shared/inventoryLogic";
 import { parseExtractionResponse } from "./ocrParsing";
 import { normalizeZoneFields } from "@shared/zoneTaxonomy";
@@ -29,7 +31,23 @@ async function extractUnitsFromAsset(dataUrl: string, mimeType: string) {
 
 export const appRouter = router({
   system: systemRouter,
-  auth: router({ me: publicProcedure.query(opts => opts.ctx.user), logout: publicProcedure.mutation(({ ctx }) => { const cookieOptions = getSessionCookieOptions(ctx.req); ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 }); return { success: true } as const; }) }),
+  auth: router({
+    me: publicProcedure.query(opts => opts.ctx.user),
+    logout: publicProcedure.mutation(({ ctx }) => { const cookieOptions = getSessionCookieOptions(ctx.req); ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 }); return { success: true } as const; }),
+    // Standalone password login for deployments not wired up to Manus's OAuth
+    // (e.g. this app running on Railway). Gated by APP_LOGIN_PASSWORD.
+    passwordLoginEnabled: publicProcedure.query(() => ({ enabled: Boolean((process.env.APP_LOGIN_PASSWORD ?? "").length > 0) })),
+    passwordLogin: publicProcedure.input(z.object({ password: z.string().min(1) })).mutation(async ({ ctx, input }) => {
+      if (!validateAppLoginPassword(input.password)) throw new TRPCError({ code: "UNAUTHORIZED", message: "Incorrect password" });
+      const sharedOpenId = "app-password-shared-access";
+      const { upsertUser } = await import("./db");
+      await upsertUser({ openId: sharedOpenId, name: "Shared Access", email: null, loginMethod: "app-password", lastSignedIn: new Date() });
+      const token = await sdk.signSession({ openId: sharedOpenId, appId: ENV.appId, name: "Shared Access" });
+      const cookieOptions = getSessionCookieOptions(ctx.req);
+      ctx.res.cookie(COOKIE_NAME, token, { ...cookieOptions, maxAge: 365 * 24 * 60 * 60 * 1000 });
+      return { success: true } as const;
+    }),
+  }),
   dashboard: protectedProcedure.query(async () => {
     const db = await getDb(); const active = await getLatestActiveUnits(); const latest = await getLatestSnapshot();
     if (!db || !latest) return { active: 0, sourced: 0, sold: 0, net: 0, updated: 0, priceChanges: 0, trend: [] as Array<{ date: string; count: number }> };
