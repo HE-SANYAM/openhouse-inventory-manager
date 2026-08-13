@@ -3,12 +3,11 @@ import { TRPCError } from "@trpc/server";
 import { and, desc, eq } from "drizzle-orm";
 import { invokeLLM } from "./_core/llm";
 import { storagePut } from "./storage";
-import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
+import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
-import { sdk } from "./_core/sdk";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
-import { changeEvents, getDb, getLatestActiveUnits, getLatestSnapshot, getUnitsForSnapshot, inventorySnapshots, inventoryUnits, snapshotAssets, resetInventoryData, getConfig, setConfig, addManualUnit, updateManualUnit, deleteInventoryUnit, upsertUser, getUserByOpenId } from "./db";
+import { changeEvents, getDb, getLatestActiveUnits, getLatestSnapshot, getUnitsForSnapshot, inventorySnapshots, inventoryUnits, snapshotAssets, resetInventoryData, getConfig, setConfig, addManualUnit, updateManualUnit, deleteInventoryUnit } from "./db";
 import { validateInventoryResetPassword } from "./resetSecurity";
 import { compareUnits, completenessScore, incompleteUploadWarning, mergeExtractedUnits, unitKey } from "@shared/inventoryLogic";
 import { parseExtractionResponse } from "./ocrParsing";
@@ -32,18 +31,6 @@ export const appRouter = router({
   system: systemRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
-    passwordLogin: publicProcedure.input(z.object({ password: z.string().min(1) })).mutation(async ({ input, ctx }) => {
-      const expected = process.env.APP_LOGIN_PASSWORD;
-      if (!expected || input.password !== expected) throw new TRPCError({ code: "UNAUTHORIZED", message: "Incorrect password" });
-      const openId = "local-admin";
-      await upsertUser({ openId, name: "Admin", role: "admin", lastSignedIn: new Date() });
-      const user = await getUserByOpenId(openId);
-      if (!user) throw new Error("Failed to create local admin user");
-      const token = await sdk.createSessionToken(openId, { name: "Admin" });
-      const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.cookie(COOKIE_NAME, token, { ...cookieOptions, maxAge: ONE_YEAR_MS });
-      return { success: true as const };
-    }),
     logout: publicProcedure.mutation(({ ctx }) => { const cookieOptions = getSessionCookieOptions(ctx.req); ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 }); return { success: true } as const; }),
   }),
   dashboard: protectedProcedure.query(async () => {
