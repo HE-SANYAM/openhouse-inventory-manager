@@ -512,6 +512,18 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     }
 
     const anthData = await anthResp.json() as any;
+
+    // If the model hit the token cap mid-generation, the tool_use JSON is
+    // incomplete. jsonrepair downstream would "fix" it by closing brackets
+    // early, silently dropping every unit after the cutoff with no error
+    // surfaced. Fail loudly instead so the caller can flag the file/page as
+    // failed rather than quietly returning a partial unit list.
+    if (anthData.stop_reason === "max_tokens") {
+      throw new Error(
+        "Claude API invoke failed: response was cut off at the max_tokens limit before finishing — extracted units for this page are incomplete. Increase max_tokens or split the page into smaller sections."
+      );
+    }
+
     // Parse Anthropic response (tool_use or text content)
     let textOutput = "";
     if (anthData.content) {

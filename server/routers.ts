@@ -25,7 +25,7 @@ async function extractUnitsFromAsset(dataUrl: string, mimeType: string) {
   const visualPart = mimeType === "application/pdf"
     ? { type: "file_url" as const, file_url: { url: dataUrl, mime_type: "application/pdf" as const } }
     : { type: "image_url" as const, image_url: { url: dataUrl, detail: "high" as const } };
-  const response = await invokeLLM({ messages: [{ role: "system", content: "You extract real-estate inventory tables from images and PDF reports. Return only structured JSON." }, { role: "user", content: [{ type: "text", text: extractionPrompt }, visualPart] }], response_format: { type: "json_schema", json_schema: { name: "inventory_extract", strict: true, schema: { type: "object", properties: { units: { type: "array", items: unitSchema } }, required: ["units"], additionalProperties: false } } } });
+  const response = await invokeLLM({ messages: [{ role: "system", content: "You extract real-estate inventory tables from images and PDF reports. Return only structured JSON." }, { role: "user", content: [{ type: "text", text: extractionPrompt }, visualPart] }], max_tokens: 8192, response_format: { type: "json_schema", json_schema: { name: "inventory_extract", strict: true, schema: { type: "object", properties: { units: { type: "array", items: unitSchema } }, required: ["units"], additionalProperties: false } } } });
   return parseExtractionResponse(response.choices?.[0]?.message?.content).units as any[];
 }
 
