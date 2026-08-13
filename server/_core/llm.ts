@@ -418,6 +418,12 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     // fallback to env
   }
 
+  // Default to the ANTHROPIC_API_KEY environment variable (e.g. set on Railway)
+  // when no key has been saved via the in-app Settings panel.
+  if (!customClaudeKey && process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY.trim().length > 5) {
+    customClaudeKey = process.env.ANTHROPIC_API_KEY.trim();
+  }
+
   // If a custom Anthropic Claude API key is configured, use Anthropic's Messages API directly
   if (customClaudeKey && (customClaudeKey.startsWith("sk-ant-") || customClaudeKey.length > 20)) {
     // Convert OpenAI-style chat messages and schema to Anthropic format
