@@ -41,10 +41,9 @@ export default function Home() {
   const sold = trpc.sold.useQuery(undefined, { enabled: !!user && tab === "sold" });
   const history = trpc.history.useQuery(undefined, { enabled: !!user && tab === "history" });
 
-  const extract = trpc.extract.useMutation({
-    onSuccess: data => { setReview(data); toast.success("Report files analyzed successfully"); },
-    onError: e => toast.error(e.message)
-  });
+  const [isExtracting, setIsExtracting] = useState(false);
+  const extractOne = trpc.extractOne.useMutation();
+  const finalizeExtraction = trpc.finalizeExtraction.useMutation();
 
   const confirm = trpc.confirm.useMutation({
     onSuccess: () => {
@@ -119,9 +118,31 @@ export default function Home() {
     setFiles(prev => [...prev, ...next]);
   };
 
-  const handleExtract = () => {
+  const handleExtract = async () => {
     if (!files.length) return toast.error("Select at least one PDF or report image");
-    extract.mutate({ files });
+    setIsExtracting(true);
+    try {
+      // One request per file (not one request for the whole batch) so no
+      // single call's body can approach Vercel's 4.5MB function limit no
+      // matter how many screenshots are selected. Fired concurrently so
+      // total wait time is still just the slowest single file.
+      const settled = await Promise.allSettled(
+        files.map(file => extractOne.mutateAsync({ name: file.name, mimeType: file.mimeType, url: file.url }))
+      );
+      const results = settled.map((s, i) =>
+        s.status === "fulfilled" ? s.value : { fileName: files[i].name, rows: [] as any[], status: "failed" as const, error: "OCR failed" }
+      );
+      const finalized = await finalizeExtraction.mutateAsync({
+        assets: files.map(f => ({ name: f.name, mimeType: f.mimeType, url: f.url })),
+        results,
+      });
+      setReview(finalized);
+      toast.success("Report files analyzed successfully");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Extraction failed");
+    } finally {
+      setIsExtracting(false);
+    }
   };
 
   const eventCounts = useMemo(() => {
@@ -591,10 +612,10 @@ export default function Home() {
 
                   <Button
                     onClick={handleExtract}
-                    disabled={!files.length || extract.isPending}
+                    disabled={!files.length || isExtracting}
                     className="mntn-button w-full justify-center mt-6"
                   >
-                    {extract.isPending ? (
+                    {isExtracting ? (
                       <>
                         <Loader2 className="animate-spin" size={16} /> Analyzing report files...
                       </>
