@@ -11,11 +11,12 @@ import { trpc } from "@/lib/trpc";
 import { ArrowUpRight, BarChart3, Check, ChevronRight, CircleAlert, Download, FileImage, FileSpreadsheet, FileText, Filter, History, Home as HomeIcon, Loader2, LogOut, Menu as MenuIcon, Minus, Plus, Search, Shield, Sparkles, TrendingDown, TrendingUp, UploadCloud, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { upload } from "@vercel/blob/client";
 import { startLogin } from "@/const";
 import { downloadInventorySection, downloadWorkbook } from "@/lib/inventoryExport";
 import { isSupportedUploadMime, uploadAcceptAttribute, type SupportedUploadMime } from "@/lib/ocrUpload";
 
-type FilePayload = { name: string; mimeType: SupportedUploadMime; dataUrl: string };
+type FilePayload = { name: string; mimeType: SupportedUploadMime; url: string };
 const formatPrice = (value: unknown, display?: string | null) => display || (value ? `₹${Number(value).toLocaleString("en-IN")}` : "—");
 const formatDate = (date: unknown) => date ? new Date(date as string).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
 
@@ -89,13 +90,15 @@ export default function Home() {
     const next: FilePayload[] = [];
     for (const file of Array.from(list)) {
       if (!isSupportedUploadMime(file.type)) { toast.error(`${file.name}: use a PDF, PNG, JPG, WEBP, or GIF file`); continue; }
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result));
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-      next.push({ name: file.name, mimeType: file.type as SupportedUploadMime, dataUrl });
+      try {
+        // Upload straight from the browser to Blob storage -- large
+        // screenshots/PDFs never pass through our own server, so there's no
+        // request-body size limit to hit (Vercel functions cap those at 4.5MB).
+        const blob = await upload(file.name, file, { access: "public", handleUploadUrl: "/api/blob-upload" });
+        next.push({ name: file.name, mimeType: file.type as SupportedUploadMime, url: blob.url });
+      } catch {
+        toast.error(`${file.name}: upload failed`);
+      }
     }
     setFiles(prev => [...prev, ...next]);
   };

@@ -339,6 +339,19 @@ const fetchWithBackoff = async (
     : new Error("LLM request failed after exhausting retries");
 };
 
+async function fetchAsBase64(
+  url: string,
+  fallbackMediaType?: string
+): Promise<{ media_type: string; data: string }> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch asset for OCR (${response.status}): ${url}`);
+  }
+  const media_type = response.headers.get("content-type") || fallbackMediaType || "application/octet-stream";
+  const buffer = Buffer.from(await response.arrayBuffer());
+  return { media_type, data: buffer.toString("base64") };
+}
+
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   const {
     messages,
@@ -441,31 +454,27 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
           } else if (p.type === "text") {
             anthropicContent.push({ type: "text", text: p.text });
           } else if (p.type === "image_url") {
-            // image_url url is data:image/jpeg;base64,...
+            // image_url url is either a data:image/jpeg;base64,... URL or a
+            // real HTTPS URL (e.g. a client-uploaded Vercel Blob asset) --
+            // fetch those server-side since Anthropic needs base64 image data.
             const urlMatch = p.image_url.url.match(/^data:([^;]+);base64,(.+)$/);
-            if (urlMatch) {
-              anthropicContent.push({
-                type: "image",
-                source: {
-                  type: "base64",
-                  media_type: urlMatch[1],
-                  data: urlMatch[2],
-                },
-              });
-            }
+            const source = urlMatch
+              ? { media_type: urlMatch[1], data: urlMatch[2] }
+              : await fetchAsBase64(p.image_url.url);
+            anthropicContent.push({
+              type: "image",
+              source: { type: "base64", media_type: source.media_type, data: source.data },
+            });
           } else if (p.type === "file_url") {
-            // PDF file_url
+            // PDF file_url -- same data: URL or real HTTPS URL handling as above
             const urlMatch = p.file_url.url.match(/^data:([^;]+);base64,(.+)$/);
-            if (urlMatch) {
-              anthropicContent.push({
-                type: "document",
-                source: {
-                  type: "base64",
-                  media_type: urlMatch[1],
-                  data: urlMatch[2],
-                },
-              });
-            }
+            const source = urlMatch
+              ? { media_type: urlMatch[1], data: urlMatch[2] }
+              : await fetchAsBase64(p.file_url.url, p.file_url.mime_type);
+            anthropicContent.push({
+              type: "document",
+              source: { type: "base64", media_type: source.media_type, data: source.data },
+            });
           }
         }
         anthropicMessages.push({ role: msg.role === "assistant" ? "assistant" : "user", content: anthropicContent.length === 1 && anthropicContent[0].type === "text" ? anthropicContent[0].text : anthropicContent });

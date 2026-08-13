@@ -2,7 +2,6 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq } from "drizzle-orm";
 import { invokeLLM } from "./_core/llm";
-import { storagePut } from "./storage";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
@@ -58,15 +57,18 @@ export const appRouter = router({
   sold: protectedProcedure.query(async () => { const db = await getDb(); if (!db) return []; const events = await db.select().from(changeEvents).where(eq(changeEvents.eventType, "sold")).orderBy(desc(changeEvents.createdAt)); const unique = new Map<string, any>(); for (const event of events) if (!unique.has(event.unitKey)) unique.set(event.unitKey, { event, unit: JSON.parse(event.beforeJson || event.afterJson || "{}") }); return Array.from(unique.values()); }),
   history: protectedProcedure.query(async () => { const db = await getDb(); if (!db) return []; return db.select().from(inventorySnapshots).orderBy(desc(inventorySnapshots.snapshotDate)); }),
   snapshotAssets: protectedProcedure.input(z.object({ snapshotId: z.number() })).query(async ({ input }) => { const db = await getDb(); if (!db) return []; return db.select().from(snapshotAssets).where(eq(snapshotAssets.snapshotId, input.snapshotId)); }),
-  extract: protectedProcedure.input(z.object({ files: z.array(z.object({ name: z.string(), mimeType: z.enum(["application/pdf", "image/png", "image/jpeg", "image/webp", "image/gif"]), dataUrl: z.string() })).min(1) })).mutation(async ({ input }) => {
-    const assets = await Promise.all(input.files.map(async f => { const base64 = f.dataUrl.split(",")[1] || ""; const { key, url } = await storagePut(`inventory-uploads/${Date.now()}-${f.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`, Buffer.from(base64, "base64"), f.mimeType); return { ...f, key, url }; }));
+  extract: protectedProcedure.input(z.object({ files: z.array(z.object({ name: z.string(), mimeType: z.enum(["application/pdf", "image/png", "image/jpeg", "image/webp", "image/gif"]), url: z.string() })).min(1) })).mutation(async ({ input }) => {
+    // Files are already uploaded to Blob storage directly from the browser
+    // (see Home.tsx's addFiles) -- no server upload step needed here, and no
+    // request-body size limit to worry about for large screenshots/PDFs.
+    const assets = input.files.map(f => ({ name: f.name, mimeType: f.mimeType, key: f.url, url: f.url }));
     // Run per-file OCR concurrently, not sequentially -- 10 files at ~20-30s
     // each in a serial loop pushed total request time past 4 minutes, which
     // networks/proxies between the browser and this server were killing
     // before the (eventually successful) response ever arrived.
     const extractionResults = await Promise.all(assets.map(async asset => {
       try {
-        const rows = await extractUnitsFromAsset(asset.dataUrl, asset.mimeType);
+        const rows = await extractUnitsFromAsset(asset.url, asset.mimeType);
         return { rows, coverage: { fileName: asset.name, rowCount: rows.length, status: "processed" as const } };
       } catch (error) {
         return { rows: [] as any[], coverage: { fileName: asset.name, rowCount: 0, status: "failed" as const, error: error instanceof Error ? error.message : "OCR failed" } };
