@@ -23,7 +23,13 @@ async function extractUnitsFromAsset(dataUrl: string, mimeType: string) {
   const visualPart = mimeType === "application/pdf"
     ? { type: "file_url" as const, file_url: { url: dataUrl, mime_type: "application/pdf" as const } }
     : { type: "image_url" as const, image_url: { url: dataUrl, detail: "high" as const } };
-  const response = await invokeLLM({ messages: [{ role: "system", content: "You extract real-estate inventory tables from images and PDF reports. Return only structured JSON." }, { role: "user", content: [{ type: "text", text: extractionPrompt }, visualPart] }], response_format: { type: "json_schema", json_schema: { name: "inventory_extract", strict: true, schema: { type: "object", properties: { units: { type: "array", items: unitSchema } }, required: ["units"], additionalProperties: false } } } });
+  const response = await invokeLLM({ messages: [{ role: "system", content: "You extract real-estate inventory tables from images and PDF reports. Return only structured JSON." }, { role: "user", content: [{ type: "text", text: extractionPrompt }, visualPart] }], maxTokens: 8192, response_format: { type: "json_schema", json_schema: { name: "inventory_extract", strict: true, schema: { type: "object", properties: { units: { type: "array", items: unitSchema } }, required: ["units"], additionalProperties: false } } } });
+  // A response cut off by the output-token cap silently yields a partial
+  // (but still validly repairable) units array -- surface it as a failure
+  // instead of quietly under-reporting rows from dense screenshots.
+  if (response.choices?.[0]?.finish_reason === "max_tokens") {
+    throw new Error("OCR response was truncated -- this file has too many rows for one extraction pass. Split it into smaller sections and re-upload.");
+  }
   return parseExtractionResponse(response.choices?.[0]?.message?.content).units as any[];
 }
 
