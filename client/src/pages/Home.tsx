@@ -129,14 +129,18 @@ export default function Home() {
       const settled = await Promise.allSettled(
         files.map(file => extractOne.mutateAsync({ name: file.name, mimeType: file.mimeType, url: file.url }))
       );
+      // extractOne persists each file to Blob server-side when possible and
+      // returns that small real URL in place of the original (possibly
+      // base64) one -- use it here so review/confirm never has to carry
+      // full image data again. Falls back to the original url if the
+      // request itself failed outright (network error, not an OCR failure).
       const results = settled.map((s, i) =>
-        s.status === "fulfilled" ? s.value : { fileName: files[i].name, rows: [] as any[], status: "failed" as const, error: "OCR failed" }
+        s.status === "fulfilled" ? s.value : { fileName: files[i].name, rows: [] as any[], status: "failed" as const, error: "OCR failed", url: files[i].url }
       );
-      const finalized = await finalizeExtraction.mutateAsync({ results });
-      // assets are attached from local state rather than round-tripped
-      // through finalizeExtraction, which only ever sees small already
-      // -extracted JSON -- not every file's (possibly base64) url again.
-      setReview({ ...finalized, assets: files.map(f => ({ name: f.name, mimeType: f.mimeType, key: f.url, url: f.url })) });
+      const finalized = await finalizeExtraction.mutateAsync({
+        results: results.map(({ fileName, rows, status, error }) => ({ fileName, rows, status, error })),
+      });
+      setReview({ ...finalized, assets: files.map((f, i) => ({ name: f.name, mimeType: f.mimeType, key: results[i].url, url: results[i].url })) });
       toast.success("Report files analyzed successfully");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Extraction failed");

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq } from "drizzle-orm";
+import { put } from "@vercel/blob";
 import { invokeLLM } from "./_core/llm";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
@@ -30,6 +31,26 @@ async function extractUnitsFromAsset(dataUrl: string, mimeType: string) {
     throw new Error("OCR response was truncated -- this file has too many rows for one extraction pass. Split it into smaller sections and re-upload.");
   }
   return parseExtractionResponse(response.choices?.[0]?.message?.content).units as any[];
+}
+
+// Replaces a data: URL with a small, real Blob URL server-side so downstream
+// steps (finalizeExtraction's client-held assets, confirm's snapshotAssets)
+// never need to carry a file's full base64 data again. Uses Vercel's OIDC
+// token (BLOB_STORE_ID + VERCEL_OIDC_TOKEN, auto-provisioned once a Blob
+// store is connected to the project) rather than a static
+// BLOB_READ_WRITE_TOKEN, which this account's dashboard never exposed.
+// Deployments without Blob configured (e.g. Railway) simply keep the
+// original data: URL -- fine there since they have no request-body cap.
+async function persistAsset(name: string, mimeType: string, url: string): Promise<string> {
+  const match = url.match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) return url;
+  try {
+    const buffer = Buffer.from(match[2], "base64");
+    const blob = await put(`inventory-uploads/${Date.now()}-${name.replace(/[^a-zA-Z0-9._-]/g, "_")}`, buffer, { access: "public", contentType: mimeType, addRandomSuffix: true });
+    return blob.url;
+  } catch {
+    return url;
+  }
 }
 
 export const appRouter = router({
@@ -66,11 +87,12 @@ export const appRouter = router({
   // regardless of batch size, and the client fires them concurrently so
   // total wall-clock time is still just the slowest single file.
   extractOne: protectedProcedure.input(z.object({ name: z.string(), mimeType: z.enum(["application/pdf", "image/png", "image/jpeg", "image/webp", "image/gif"]), url: z.string() })).mutation(async ({ input }) => {
+    const url = await persistAsset(input.name, input.mimeType, input.url);
     try {
       const rows = await extractUnitsFromAsset(input.url, input.mimeType);
-      return { fileName: input.name, rows, status: "processed" as const };
+      return { fileName: input.name, rows, status: "processed" as const, url };
     } catch (error) {
-      return { fileName: input.name, rows: [] as any[], status: "failed" as const, error: error instanceof Error ? error.message : "OCR failed" };
+      return { fileName: input.name, rows: [] as any[], status: "failed" as const, error: error instanceof Error ? error.message : "OCR failed", url };
     }
   }),
   // No `assets` field here on purpose: the client already holds each file's
