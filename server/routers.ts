@@ -73,12 +73,17 @@ export const appRouter = router({
       return { fileName: input.name, rows: [] as any[], status: "failed" as const, error: error instanceof Error ? error.message : "OCR failed" };
     }
   }),
+  // No `assets` field here on purpose: the client already holds each file's
+  // name/mimeType/url locally and re-attaches it to the response itself (see
+  // Home.tsx). Echoing assets back through this call would mean resending
+  // every file's full data URL again in one request when Blob upload isn't
+  // available and url falls back to inline base64 -- reintroducing the exact
+  // oversized-body problem extractOne's per-file split exists to avoid.
   finalizeExtraction: protectedProcedure.input(z.object({
-    assets: z.array(z.object({ name: z.string(), mimeType: z.string(), url: z.string() })),
     results: z.array(z.object({ fileName: z.string(), rows: z.array(z.any()), status: z.enum(["processed", "failed"]), error: z.string().optional() })),
   })).mutation(async ({ input }) => {
     const extractedByImage = input.results.map(r => r.rows); const coverage = input.results.map(r => ({ fileName: r.fileName, rowCount: r.rows.length, status: r.status, error: r.error })); const deduped = mergeExtractedUnits(extractedByImage); const score = completenessScore(deduped); const previous = await getLatestSnapshot(); const old = previous ? await getUnitsForSnapshot(previous.id) : []; const changes = compareUnits(deduped, old); const failedFiles = coverage.filter(c => c.status === "failed"); const warnings = [incompleteUploadWarning(old.length, deduped.length, score), failedFiles.length ? `${failedFiles.length} uploaded file${failedFiles.length === 1 ? " was" : "s were"} not readable by OCR. Review those files and retry.` : null].filter(Boolean); const warning = warnings.length ? warnings.join(" ") : null;
-    return { assets: input.assets.map(a => ({ name: a.name, mimeType: a.mimeType, key: a.url, url: a.url })), units: deduped, processedImageCount: input.assets.length, extractedRowCount: extractedByImage.reduce((n, rows) => n + rows.length, 0), coverage, changes, completenessScore: score, warning, previousSnapshotDate: previous?.snapshotDate ?? null };
+    return { units: deduped, processedImageCount: input.results.length, extractedRowCount: extractedByImage.reduce((n, rows) => n + rows.length, 0), coverage, changes, completenessScore: score, warning, previousSnapshotDate: previous?.snapshotDate ?? null };
   }),
   adminVerify: publicProcedure.input(z.object({ password: z.string().min(1) })).mutation(async ({ input }) => {
     const adminPass = process.env.INVENTORY_RESET_PASSWORD || "admin123";

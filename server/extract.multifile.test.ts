@@ -22,7 +22,7 @@ describe("extract multi-file workflow", () => {
     const files = ["a", "b", "c"].map((name) => ({ name: `${name}.png`, mimeType: "image/png", url: `https://blob.test/${name}.png` }));
     const caller = appRouter.createCaller(ctx);
     const results = await Promise.all(files.map(f => caller.extractOne(f)));
-    const result = await caller.finalizeExtraction({ assets: files, results });
+    const result = await caller.finalizeExtraction({ results });
     expect(invokeLLM).toHaveBeenCalledTimes(3);
     expect(result.processedImageCount).toBe(3);
     expect(result.coverage).toHaveLength(3);

@@ -132,11 +132,11 @@ export default function Home() {
       const results = settled.map((s, i) =>
         s.status === "fulfilled" ? s.value : { fileName: files[i].name, rows: [] as any[], status: "failed" as const, error: "OCR failed" }
       );
-      const finalized = await finalizeExtraction.mutateAsync({
-        assets: files.map(f => ({ name: f.name, mimeType: f.mimeType, url: f.url })),
-        results,
-      });
-      setReview(finalized);
+      const finalized = await finalizeExtraction.mutateAsync({ results });
+      // assets are attached from local state rather than round-tripped
+      // through finalizeExtraction, which only ever sees small already
+      // -extracted JSON -- not every file's (possibly base64) url again.
+      setReview({ ...finalized, assets: files.map(f => ({ name: f.name, mimeType: f.mimeType, key: f.url, url: f.url })) });
       toast.success("Report files analyzed successfully");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Extraction failed");
